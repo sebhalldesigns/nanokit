@@ -34,7 +34,7 @@ extern "C" {
 
 typedef uintptr_t ui_context_t;
 
-bool ui_context_init(ui_context_t *context);
+bool ui_context_init(ui_context_t *context, const char* default_font);
 
 void ui_context_render(ui_context_t *context, nk_view_t *root, float width, float height, float dpr, float pointer_x, float pointer_y, bool mouse_down);
 

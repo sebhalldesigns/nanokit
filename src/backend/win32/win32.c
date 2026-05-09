@@ -16,7 +16,6 @@
 ***************************************************************/
 
 #include <nanokit.h>
-#include <backend/backend.h>
 #include <ui/context/context.h>
 
 
@@ -94,6 +93,8 @@ static PFNWGLGETSWAPINTERVALEXTPROC wglGetSwapIntervalEXT = NULL;
 ** MARK: STATIC FUNCTION DEFS
 ***************************************************************/
 
+static bool backend_init();
+
 static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, LPARAM lparam);
 
 static win32_window_data_t* get_window_data(HWND hwnd);
@@ -109,7 +110,148 @@ static const wchar_t* utf8_to_wide(const char *str);
 ** MARK: PUBLIC FUNCTIONS
 ***************************************************************/
 
-bool backend_init()
+bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
+{
+    const wchar_t *wtitle = utf8_to_wide(info->title);
+
+    HWND win32_window = CreateWindowExW(
+        0,
+        window_class.lpszClassName,
+        wtitle,
+        WS_OVERLAPPEDWINDOW,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        info->start_width,
+        info->start_height,
+        0,
+        0,
+        instance_handle,
+        0
+    );
+
+    free((void*)wtitle);
+
+    if (!win32_window)
+    {
+        fprintf(stderr, "Failed to create window.\n");
+        print_last_error("CreateWindowExW(NANOKIT_WINDOW_CLASS)");
+        return false;
+    }
+
+    win32_window_data_t* data = (win32_window_data_t*)calloc(1, sizeof(win32_window_data_t));
+    data->hwnd = win32_window;
+    data->gldc = GetDC(win32_window);
+    RECT client_rect = {0};
+    GetClientRect(win32_window, &client_rect);
+    data->width = client_rect.right - client_rect.left;
+    data->height = client_rect.bottom - client_rect.top;
+    data->cursor = LoadCursorW(NULL, IDC_ARROW);
+    data->root_view = info->root;
+
+    const static int pixel_format_attribs[] = {
+        WGL_DRAW_TO_WINDOW_ARB,     GL_TRUE,
+        WGL_SUPPORT_OPENGL_ARB,     GL_TRUE,
+        WGL_DOUBLE_BUFFER_ARB,      GL_TRUE,
+        WGL_ACCELERATION_ARB,       WGL_FULL_ACCELERATION_ARB,
+        WGL_PIXEL_TYPE_ARB,         WGL_TYPE_RGBA_ARB,
+        WGL_COLOR_BITS_ARB,         32,
+        WGL_DEPTH_BITS_ARB,         24,
+        WGL_STENCIL_BITS_ARB,       8,
+        0
+    };
+
+    UINT num_formats;
+    wglChoosePixelFormatARB(data->gldc, pixel_format_attribs, 0, 1, &pixel_format, &num_formats);
+    if (!num_formats) {
+        fprintf(stderr, "Failed to set the OpenGL 3.3 pixel format.\n");
+    }
+
+    DescribePixelFormat(data->gldc, pixel_format, sizeof(pfd), &pfd);
+    if (!SetPixelFormat(data->gldc, pixel_format, &pfd))
+    {
+        fprintf(stderr, "Failed to set the OpenGL 3.3 pixel format.\n");
+    }
+
+    const static int gl33_attribs[] = {
+        WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
+        WGL_CONTEXT_MINOR_VERSION_ARB, 3,
+        WGL_CONTEXT_PROFILE_MASK_ARB,  WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+        0,
+    };
+
+    HGLRC gl33_context = wglCreateContextAttribsARB(data->gldc, 0, gl33_attribs);
+    if (!gl33_context)
+    {
+        fprintf(stderr, "Failed to create OpenGL 3.3 context.\n");
+    }
+
+    if (!wglMakeCurrent(data->gldc, gl33_context))
+    {
+        fprintf(stderr, "Failed to activate OpenGL 3.3 rendering context.\n");
+    }
+
+    if (wglSwapIntervalEXT)
+    {
+        wglSwapIntervalEXT(1);   /* enable vsync */
+    }
+
+    SetWindowLongPtr(win32_window, GWLP_USERDATA, (LONG_PTR)data);
+
+    if (!ui_context_init(&data->render_context, "C:/Windows/Fonts/segoeui.ttf"))
+    {
+        fprintf(stderr, "Failed to initialize renderer.\n");
+    }
+
+    ShowWindow(data->hwnd, SW_SHOW);
+    UpdateWindow(data->hwnd);
+
+    *window = (nk_window_t)win32_window;
+
+    return true;
+}
+
+int nk_run(nk_run_info_t *info, int argc, char **argv)
+{
+    printf("Hello world!\n");
+
+    if (!backend_init())
+    {
+        fprintf(stderr, "Failed to initialize backend.\n");
+        return -1;
+    }
+
+    info->launch_callback();
+
+    bool running = true;
+
+    MSG msg;
+
+    while (running)
+    {
+        MSG msg;
+
+        while (PeekMessageW(&msg, 0, 0, 0, PM_REMOVE))
+        {
+            if (msg.message == WM_QUIT)
+            {
+                running = false;
+                break;
+            }
+
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+    }
+
+    return 0;
+}
+
+/***************************************************************
+** MARK: STATIC FUNCTIONS
+***************************************************************/
+
+
+static bool backend_init()
 {
     instance_handle = GetModuleHandle(NULL);
     set_process_dpi_awareness();
@@ -220,137 +362,6 @@ bool backend_init()
 
     return true;
 }
-
-bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
-{
-    const wchar_t *wtitle = utf8_to_wide(info->title);
-
-    HWND win32_window = CreateWindowExW(
-        0,
-        window_class.lpszClassName,
-        wtitle,
-        WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        info->start_width,
-        info->start_height,
-        0,
-        0,
-        instance_handle,
-        0
-    );
-
-    free((void*)wtitle);
-
-    if (!win32_window)
-    {
-        fprintf(stderr, "Failed to create window.\n");
-        print_last_error("CreateWindowExW(NANOKIT_WINDOW_CLASS)");
-        return false;
-    }
-
-    win32_window_data_t* data = (win32_window_data_t*)calloc(1, sizeof(win32_window_data_t));
-    data->hwnd = win32_window;
-    data->gldc = GetDC(win32_window);
-    RECT client_rect = {0};
-    GetClientRect(win32_window, &client_rect);
-    data->width = client_rect.right - client_rect.left;
-    data->height = client_rect.bottom - client_rect.top;
-    data->cursor = LoadCursorW(NULL, IDC_ARROW);
-    data->root_view = info->root;
-
-    const static int pixel_format_attribs[] = {
-        WGL_DRAW_TO_WINDOW_ARB,     GL_TRUE,
-        WGL_SUPPORT_OPENGL_ARB,     GL_TRUE,
-        WGL_DOUBLE_BUFFER_ARB,      GL_TRUE,
-        WGL_ACCELERATION_ARB,       WGL_FULL_ACCELERATION_ARB,
-        WGL_PIXEL_TYPE_ARB,         WGL_TYPE_RGBA_ARB,
-        WGL_COLOR_BITS_ARB,         32,
-        WGL_DEPTH_BITS_ARB,         24,
-        WGL_STENCIL_BITS_ARB,       8,
-        0
-    };
-
-    UINT num_formats;
-    wglChoosePixelFormatARB(data->gldc, pixel_format_attribs, 0, 1, &pixel_format, &num_formats);
-    if (!num_formats) {
-        fprintf(stderr, "Failed to set the OpenGL 3.3 pixel format.\n");
-    }
-
-    DescribePixelFormat(data->gldc, pixel_format, sizeof(pfd), &pfd);
-    if (!SetPixelFormat(data->gldc, pixel_format, &pfd))
-    {
-        fprintf(stderr, "Failed to set the OpenGL 3.3 pixel format.\n");
-    }
-
-    const static int gl33_attribs[] = {
-        WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
-        WGL_CONTEXT_MINOR_VERSION_ARB, 3,
-        WGL_CONTEXT_PROFILE_MASK_ARB,  WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
-        0,
-    };
-
-    HGLRC gl33_context = wglCreateContextAttribsARB(data->gldc, 0, gl33_attribs);
-    if (!gl33_context)
-    {
-        fprintf(stderr, "Failed to create OpenGL 3.3 context.\n");
-    }
-
-    if (!wglMakeCurrent(data->gldc, gl33_context))
-    {
-        fprintf(stderr, "Failed to activate OpenGL 3.3 rendering context.\n");
-    }
-
-    if (wglSwapIntervalEXT)
-    {
-        wglSwapIntervalEXT(1);   /* enable vsync */
-    }
-
-    SetWindowLongPtr(win32_window, GWLP_USERDATA, (LONG_PTR)data);
-
-    if (!ui_context_init(&data->render_context))
-    {
-        fprintf(stderr, "Failed to initialize renderer.\n");
-    }
-
-    ShowWindow(data->hwnd, SW_SHOW);
-    UpdateWindow(data->hwnd);
-
-    *window = (nk_window_t)win32_window;
-
-    return true;
-}
-
-int backend_run()
-{
-    bool running = true;
-
-    MSG msg;
-
-    while (running)
-    {
-        MSG msg;
-
-        while (PeekMessageW(&msg, 0, 0, 0, PM_REMOVE))
-        {
-            if (msg.message == WM_QUIT)
-            {
-                running = false;
-                break;
-            }
-
-            TranslateMessage(&msg);
-            DispatchMessageW(&msg);
-        }
-    }
-
-    return 0;
-}
-
-/***************************************************************
-** MARK: STATIC FUNCTIONS
-***************************************************************/
-
 
 static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, LPARAM lparam)
 {

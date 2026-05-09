@@ -56,7 +56,7 @@ static Clay_SizingAxis nk_to_clay_sizing(nk_sizing_t s);
 ** MARK: PUBLIC FUNCTIONS
 ***************************************************************/
 
-bool ui_context_init(ui_context_t *context)
+bool ui_context_init(ui_context_t *context, const char* default_font)
 {
     if (!gladLoadGL())
     {
@@ -71,7 +71,7 @@ bool ui_context_init(ui_context_t *context)
         return false;
     }
 
-    int font = nvgCreateFont(vg, "default", "C:/Windows/Fonts/segoeui.ttf");
+    int font = nvgCreateFont(vg, "default", default_font);
     if (font == -1)
     {
         fprintf(stderr, "Failed to load font\n");

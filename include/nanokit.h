@@ -61,6 +61,7 @@ struct nk_view_t;
 
 typedef struct
 {
+    const char *application_id;
     nk_void_callback_t launch_callback;
 } nk_run_info_t;
 

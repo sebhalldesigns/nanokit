@@ -13,10 +13,29 @@ if (WIN32)
         opengl32
         dwmapi
     )
+elseif(LINUX)
+
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(GTK4 REQUIRED gtk4)
+
+    set(BACKEND_SRC
+        src/backend/gtk/gtk.c
+    )
+
+    set(BACKEND_LIBS
+        EGL
+        GL
+        m
+        fontconfig
+        ${GTK4_LIBRARIES}
+    )
+
+    set(BACKEND_INCLUDES
+        ${GTK4_INCLUDE_DIRS}
+    )
 endif()
 
 add_library(nanokit STATIC
-    src/lib.c
     src/ui/context/context.c
     src/ui/view/view.c
     ${BACKEND_SRC}
@@ -29,6 +48,7 @@ target_include_directories(nanokit PUBLIC
 target_include_directories(nanokit PRIVATE
     src
     extern
+    ${BACKEND_INCLUDES}
 )
 
 target_link_libraries(nanokit PUBLIC

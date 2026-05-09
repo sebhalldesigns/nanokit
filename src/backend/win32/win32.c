@@ -17,6 +17,9 @@
 
 #include <nanokit.h>
 #include <backend/backend.h>
+#include <renderer/renderer.h>
+
+
 #include <string.h>
 #include <wchar.h>
 
@@ -69,6 +72,7 @@ typedef struct {
     int width;
     int height;
     HCURSOR cursor;
+    render_context_t render_context;
 } win32_window_data_t;
 
 
@@ -300,13 +304,12 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
         wglSwapIntervalEXT(1);   /* enable vsync */
     }
 
-    if (!gladLoadGL())
-    {
-        fprintf(stderr, "Failed to load OpenGL functions\n");
-        return false;
-    }
-
     SetWindowLongPtr(win32_window, GWLP_USERDATA, (LONG_PTR)data);
+
+    if (!renderer_init(&data->render_context))
+    {
+        fprintf(stderr, "Failed to initialize renderer.");
+    }
 
     ShowWindow(data->hwnd, SW_SHOW);
     UpdateWindow(data->hwnd);
@@ -445,8 +448,10 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
                 glViewport(0, 0, data->width, data->height);
                 glDisable(GL_SCISSOR_TEST);
                 //glClearColor(38.0f/255.0f, 38.0f/255.0f, 46.0f/255.0f, 0.0f);
-                glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
+                glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                renderer_render(&data->render_context, (float) data->width, (float)data->height, 1.0f);
 
                 SwapBuffers(data->gldc);
 

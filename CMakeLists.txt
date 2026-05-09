@@ -17,6 +17,7 @@ endif()
 
 add_library(nanokit STATIC
     src/lib.c
+    src/renderer/renderer.c
     ${BACKEND_SRC}
 )
 
@@ -31,6 +32,7 @@ target_include_directories(nanokit PRIVATE
 
 target_link_libraries(nanokit PUBLIC
     glad
+    nanovg
     ${BACKEND_LIBS}
 )
 

@@ -2,17 +2,17 @@
 **
 ** Nanokit Header File
 **
-** File         :  renderer.h
-** Module       :  renderer
+** File         :  view.h
+** Module       :  ui/view
 ** Author       :  SH
 ** Created      :  2026-05-09 (YYYY-MM-DD)
 ** License      :  MIT
-** Description  :  Nanokit Renderer Interface Definition
+** Description  :  Nanokit View Interface Definition
 **
 ***************************************************************/
 
-#ifndef RENDERER_H
-#define RENDERER_H
+#ifndef VIEW_H
+#define VIEW_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,11 +32,6 @@ extern "C" {
 ** MARK: TYPEDEFS
 ***************************************************************/
 
-typedef uintptr_t render_context_t;
-
-bool renderer_init(render_context_t *context);
-
-void renderer_render(render_context_t *context, float width, float height, float dpr);
 
 /***************************************************************
 ** MARK: FUNCTION DEFS
@@ -46,4 +41,4 @@ void renderer_render(render_context_t *context, float width, float height, float
 }
 #endif
 
-#endif /* RENDERER_H */
+#endif /* VIEW_H */

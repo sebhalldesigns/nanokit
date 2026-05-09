@@ -17,7 +17,8 @@ endif()
 
 add_library(nanokit STATIC
     src/lib.c
-    src/renderer/renderer.c
+    src/ui/context/context.c
+    src/ui/view/view.c
     ${BACKEND_SRC}
 )
 

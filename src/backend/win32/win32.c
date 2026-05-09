@@ -17,17 +17,12 @@
 
 #include <nanokit.h>
 #include <backend/backend.h>
-#include <renderer/renderer.h>
+#include <ui/context/context.h>
 
 
 #include <string.h>
 #include <wchar.h>
 
-#ifndef UNICODE
-#define UNICODE
-#endif
-#include <windows.h>
-#include <windowsx.h>
 #include <dwmapi.h>
 
 #include <glad/glad.h>
@@ -72,7 +67,11 @@ typedef struct {
     int width;
     int height;
     HCURSOR cursor;
-    render_context_t render_context;
+    int pointer_x;
+    int pointer_y;
+    bool pointer_down;
+    ui_context_t render_context;
+    nk_view_t *root_view;
 } win32_window_data_t;
 
 
@@ -101,6 +100,7 @@ static win32_window_data_t* get_window_data(HWND hwnd);
 
 static void apply_dwm_frame(HWND hwnd);
 static void set_process_dpi_awareness(void);
+static void print_last_error(const char *context);
 
 static const char* wide_to_utf8(const wchar_t *wstr);
 static const wchar_t* utf8_to_wide(const char *str);
@@ -244,7 +244,8 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
 
     if (!win32_window)
     {
-        fprintf(stderr, "Failed to create window.");
+        fprintf(stderr, "Failed to create window.\n");
+        print_last_error("CreateWindowExW(NANOKIT_WINDOW_CLASS)");
         return false;
     }
 
@@ -256,6 +257,7 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
     data->width = client_rect.right - client_rect.left;
     data->height = client_rect.bottom - client_rect.top;
     data->cursor = LoadCursorW(NULL, IDC_ARROW);
+    data->root_view = info->root;
 
     const static int pixel_format_attribs[] = {
         WGL_DRAW_TO_WINDOW_ARB,     GL_TRUE,
@@ -272,13 +274,13 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
     UINT num_formats;
     wglChoosePixelFormatARB(data->gldc, pixel_format_attribs, 0, 1, &pixel_format, &num_formats);
     if (!num_formats) {
-        fprintf(stderr, "Failed to set the OpenGL 3.3 pixel format.");
+        fprintf(stderr, "Failed to set the OpenGL 3.3 pixel format.\n");
     }
 
     DescribePixelFormat(data->gldc, pixel_format, sizeof(pfd), &pfd);
     if (!SetPixelFormat(data->gldc, pixel_format, &pfd))
     {
-        fprintf(stderr, "Failed to set the OpenGL 3.3 pixel format.");
+        fprintf(stderr, "Failed to set the OpenGL 3.3 pixel format.\n");
     }
 
     const static int gl33_attribs[] = {
@@ -291,12 +293,12 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
     HGLRC gl33_context = wglCreateContextAttribsARB(data->gldc, 0, gl33_attribs);
     if (!gl33_context)
     {
-        fprintf(stderr, "Failed to create OpenGL 3.3 context.");
+        fprintf(stderr, "Failed to create OpenGL 3.3 context.\n");
     }
 
     if (!wglMakeCurrent(data->gldc, gl33_context))
     {
-        fprintf(stderr, "Failed to activate OpenGL 3.3 rendering context.");
+        fprintf(stderr, "Failed to activate OpenGL 3.3 rendering context.\n");
     }
 
     if (wglSwapIntervalEXT)
@@ -306,9 +308,9 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
 
     SetWindowLongPtr(win32_window, GWLP_USERDATA, (LONG_PTR)data);
 
-    if (!renderer_init(&data->render_context))
+    if (!ui_context_init(&data->render_context))
     {
-        fprintf(stderr, "Failed to initialize renderer.");
+        fprintf(stderr, "Failed to initialize renderer.\n");
     }
 
     ShowWindow(data->hwnd, SW_SHOW);
@@ -451,7 +453,8 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
                 glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-                renderer_render(&data->render_context, (float) data->width, (float)data->height, 1.0f);
+                ui_context_render(&data->render_context, data->root_view, (float)data->width, (float)data->height, 1.0f,
+                        (float)data->pointer_x, (float)data->pointer_y, data->pointer_down);
 
                 SwapBuffers(data->gldc);
 
@@ -474,6 +477,11 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
         }
 
         case WM_MOUSEMOVE:
+            if (data)
+            {
+                data->pointer_x = GET_X_LPARAM(lparam);
+                data->pointer_y = GET_Y_LPARAM(lparam);
+            }
             InvalidateRect(window, NULL, FALSE);
             return 0;
 
@@ -487,11 +495,19 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
         } break;
 
         case WM_LBUTTONDOWN:
+            if (data)
+            {
+                data->pointer_down = true;
+            }
             SetCapture(window);
             InvalidateRect(window, NULL, FALSE);
             return 0;
 
         case WM_LBUTTONUP:
+            if (data)
+            {
+                data->pointer_down = false;
+            }
             ReleaseCapture();
             InvalidateRect(window, NULL, FALSE);
             return 0;
@@ -570,6 +586,31 @@ static void set_process_dpi_awareness(void)
         (SetProcessDPIAwareProc)GetProcAddress(user32, "SetProcessDPIAware");
     if (set_dpi_aware)
         set_dpi_aware();
+}
+
+static void print_last_error(const char *context)
+{
+    DWORD error = GetLastError();
+    LPSTR message = NULL;
+    DWORD length = FormatMessageA(
+        FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL,
+        error,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        (LPSTR)&message,
+        0,
+        NULL
+    );
+
+    if (length > 0 && message)
+    {
+        fprintf(stderr, "%s failed with error %lu: %s\n", context, (unsigned long)error, message);
+        LocalFree(message);
+    }
+    else
+    {
+        fprintf(stderr, "%s failed with error %lu.\n", context, (unsigned long)error);
+    }
 }
 
 

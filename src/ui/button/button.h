@@ -2,17 +2,17 @@
 **
 ** Nanokit Header File
 **
-** File         :  context.h
-** Module       :  ui/context
+** File         :  button.h
+** Module       :  ui/button
 ** Author       :  SH
 ** Created      :  2026-05-09 (YYYY-MM-DD)
 ** License      :  MIT
-** Description  :  Nanokit UI Context Interface Definition
+** Description  :  Nanokit Button Interface Definition
 **
 ***************************************************************/
 
-#ifndef UI_CONTEXT_H
-#define UI_CONTEXT_H
+#ifndef BUTTON_H
+#define BUTTON_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,18 +32,14 @@ extern "C" {
 ** MARK: TYPEDEFS
 ***************************************************************/
 
-typedef uintptr_t ui_context_t;
-
-bool ui_context_init(ui_context_t *context, const char* default_font);
-
-void ui_context_render(ui_context_t *context, nk_view_t *root, float width, float height, float dpr, float pointer_x, float pointer_y, bool mouse_down);
-
 /***************************************************************
 ** MARK: FUNCTION DEFS
 ***************************************************************/
+
+void button_render(nk_view_t *view);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* UI_CONTEXT_H */
+#endif /* BUTTON_H */

@@ -16,7 +16,7 @@
 ***************************************************************/
 
 #include <nanokit.h>
-#include <ui/context/context.h>
+#include <ui/view/view.h>
 
 #include <gtk/gtk.h>
 #include <gdk/gdk.h>
@@ -42,7 +42,7 @@ typedef struct {
     int pointer_x;
     int pointer_y;
     bool pointer_down;
-    ui_context_t render_context;
+    view_context_t view_context;
     nk_view_t *root_view;
 
     GtkWidget *gl_area;
@@ -83,7 +83,7 @@ const char* find_font(const char *family);
 
 bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
 {
-    GtkWidget *gtk_window = gtk_application_window_new(app);    
+    GtkWidget *gtk_window = gtk_application_window_new(app);
     gtk_window_set_default_size(GTK_WINDOW(gtk_window), info->start_width, info->start_height);
     gtk_window_set_title(GTK_WINDOW(gtk_window), info->title);
 
@@ -115,7 +115,7 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
     g_signal_connect(data->gtk_motion, "leave", G_CALLBACK(on_leave), data);
 
     data->gtk_scroll = gtk_event_controller_scroll_new(
-            GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES 
+            GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES
         |   GTK_EVENT_CONTROLLER_SCROLL_DISCRETE
     );
     g_signal_connect(data->gtk_scroll, "scroll", G_CALLBACK(on_scroll), data);
@@ -174,7 +174,7 @@ static void on_realize(GtkGLArea *area, gpointer user_data)
         if (font_path) break;
     }
 
-    if (!font_path || !ui_context_init(&data->render_context, font_path))
+    if (!font_path || !view_context_init(&data->view_context, font_path))
     {
         fprintf(stderr, "Failed to initialize renderer.\n");
     }
@@ -189,7 +189,7 @@ static gboolean on_render(GtkGLArea *area, GdkGLContext *context, gpointer user_
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    ui_context_render(&data->render_context, data->root_view, (float)data->width, (float)data->height, 1.0f,
+    view_context_render(&data->view_context, data->root_view, (float)data->width, (float)data->height, 1.0f,
                         (float)data->pointer_x, (float)data->pointer_y, data->pointer_down);
 
 }
@@ -199,9 +199,9 @@ static void on_resize(GtkGLArea *area, int width, int height, gpointer user_data
     gtk_window_data_t *data = (gtk_window_data_t*)user_data;
     data->width = width;
     data->height = height;
-    
+
     gtk_gl_area_queue_render(GTK_GL_AREA(data->gl_area));
-    
+
 }
 
 static void on_motion(GtkEventControllerMotion *motion, double x, double y, gpointer user_data)
@@ -239,7 +239,7 @@ static void on_released(GtkGestureClick *gesture, int n_press, double x, double 
     guint button = gtk_gesture_single_get_current_button(GTK_GESTURE_SINGLE(gesture));
 
     gtk_window_data_t *data = (gtk_window_data_t*)user_data;
-    
+
     if (button == 1)
     {
         data->pointer_down = false;
@@ -253,12 +253,12 @@ static void on_click_cancel(GtkGesture *gesture, GdkEventSequence *seq, gpointer
     guint button = gtk_gesture_single_get_current_button(GTK_GESTURE_SINGLE(gesture));
 
     gtk_window_data_t *data = (gtk_window_data_t*)user_data;
-    
+
     if (button == 1)
     {
         data->pointer_down = false;
     }
-    
+
     gtk_gl_area_queue_render(GTK_GL_AREA(data->gl_area));
 }
 
@@ -268,7 +268,7 @@ static gboolean on_scroll(GtkEventControllerScroll *controller, double dx, doubl
     gtk_gl_area_queue_render(GTK_GL_AREA(data->gl_area));
 }
 
-const char* find_font(const char *family) 
+const char* find_font(const char *family)
 {
     FcConfig *config = FcInitLoadConfigAndFonts();
     FcPattern *pat = FcNameParse((const FcChar8*)family);

@@ -2,17 +2,17 @@
 **
 ** Nanokit Header File
 **
-** File         :  view.h
-** Module       :  ui/view
+** File         :  label.h
+** Module       :  ui/label
 ** Author       :  SH
 ** Created      :  2026-05-09 (YYYY-MM-DD)
 ** License      :  MIT
-** Description  :  Nanokit View Interface Definition
+** Description  :  Nanokit Label Interface Definition
 **
 ***************************************************************/
 
-#ifndef VIEW_H
-#define VIEW_H
+#ifndef LABEL_H
+#define LABEL_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,11 +24,6 @@ extern "C" {
 
 #include <nanokit.h>
 
-#include <clay/clay.h>
-
-#include <ui/button/button.h>
-#include <ui/label/label.h>
-
 /***************************************************************
 ** MARK: CONSTANTS & MACROS
 ***************************************************************/
@@ -37,24 +32,14 @@ extern "C" {
 ** MARK: TYPEDEFS
 ***************************************************************/
 
-typedef uintptr_t view_context_t;
-
-
 /***************************************************************
 ** MARK: FUNCTION DEFS
 ***************************************************************/
 
-bool view_context_init(view_context_t *context, const char* default_font);
-
-void view_context_render(view_context_t *context, nk_view_t *root, float width, float height, float dpr, bool dark_mode, float pointer_x, float pointer_y, bool mouse_down);
-
-Clay_Color nk_to_clay_color(nk_color_t c);
-
-Clay_SizingAxis nk_to_clay_sizing(nk_sizing_t s);
-
+void label_render(nk_view_t *view);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* VIEW_H */
+#endif /* LABEL_H */

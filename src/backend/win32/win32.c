@@ -16,15 +16,17 @@
 ***************************************************************/
 
 #include <nanokit.h>
-#include <ui/context/context.h>
-
+#include <ui/view/view.h>
 
 #include <string.h>
 #include <wchar.h>
 
 #include <dwmapi.h>
+#include <winreg.h>
+
 
 #include <glad/glad.h>
+#include <winuser.h>
 #include "wglext.h"
 
 /***************************************************************
@@ -69,8 +71,9 @@ typedef struct {
     int pointer_x;
     int pointer_y;
     bool pointer_down;
-    ui_context_t render_context;
+    view_context_t view_context;
     nk_view_t *root_view;
+    bool dark_mode;
 } win32_window_data_t;
 
 
@@ -99,12 +102,16 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
 
 static win32_window_data_t* get_window_data(HWND hwnd);
 
+static LRESULT titlebar_hit_test(HWND hwnd, int x, int y, int titlebar_height);
 static void apply_dwm_frame(HWND hwnd);
 static void set_process_dpi_awareness(void);
 static void print_last_error(const char *context);
+static void set_titlebar_color(HWND hwnd, bool dark);
 
 static const char* wide_to_utf8(const wchar_t *wstr);
 static const wchar_t* utf8_to_wide(const char *str);
+
+static bool is_dark_mode(void);
 
 /***************************************************************
 ** MARK: PUBLIC FUNCTIONS
@@ -137,6 +144,12 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
         print_last_error("CreateWindowExW(NANOKIT_WINDOW_CLASS)");
         return false;
     }
+
+    MARGINS margins = {0, 0, 32, 0};
+    DwmExtendFrameIntoClientArea(win32_window, &margins);
+
+    SetWindowPos(win32_window, NULL, 0, 0, 0, 0,
+        SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 
     win32_window_data_t* data = (win32_window_data_t*)calloc(1, sizeof(win32_window_data_t));
     data->hwnd = win32_window;
@@ -197,10 +210,12 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
 
     SetWindowLongPtr(win32_window, GWLP_USERDATA, (LONG_PTR)data);
 
-    if (!ui_context_init(&data->render_context, "C:/Windows/Fonts/segoeui.ttf"))
+    if (!view_context_init(&data->view_context, "C:/Windows/Fonts/segoeui.ttf"))
     {
         fprintf(stderr, "Failed to initialize renderer.\n");
     }
+
+    SendMessage(win32_window, WM_SETTINGCHANGE, 0, (LPARAM)L"ImmersiveColorSet");
 
     ShowWindow(data->hwnd, SW_SHOW);
     UpdateWindow(data->hwnd);
@@ -377,7 +392,7 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
 
     switch (msg)
     {
-        #if 0
+
         case WM_CREATE:
             apply_dwm_frame(window);
             return 0;
@@ -385,7 +400,6 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
         case WM_DWMCOMPOSITIONCHANGED:
             apply_dwm_frame(window);
             return 0;
-        #endif
 
         case WM_CLOSE:
         {
@@ -393,7 +407,6 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
             return 0;
         }
 
-        #if 0
         case WM_NCCALCSIZE:
         {
             if (wparam == TRUE)
@@ -424,10 +437,30 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
 
         case WM_NCHITTEST:
         {
+            int titlebar_h = 32;  /* match your menu bar height */
+            LRESULT hit = titlebar_hit_test(window,
+                    GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam), titlebar_h);
+
+            if (hit != HTCLIENT)
+                return hit;
 
             break;
         }
-        #endif
+
+        case WM_SETTINGCHANGE:
+        {
+            if (lparam && wcscmp((LPCWSTR)lparam, L"ImmersiveColorSet") == 0 && data)
+            {
+                data->dark_mode = is_dark_mode();
+                /* Update your theme */
+                printf("Dark mode: %s\n", data->dark_mode ? "true" : "false");
+
+                set_titlebar_color(window, data->dark_mode);
+
+                InvalidateRect(window, NULL, FALSE);
+            }
+            return 0;
+        }
 
         case WM_ERASEBKGND:
         {
@@ -439,7 +472,7 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
             uint32_t width = LOWORD(lparam);
             uint32_t height = HIWORD(lparam);
 
-            if (wparam != SIZE_MINIMIZED)
+            if (wparam != SIZE_MINIMIZED && data)
             {
                 data->width = width;
                 data->height = height;
@@ -460,12 +493,12 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
 
                 glViewport(0, 0, data->width, data->height);
                 glDisable(GL_SCISSOR_TEST);
-                //glClearColor(38.0f/255.0f, 38.0f/255.0f, 46.0f/255.0f, 0.0f);
-                glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+
+                glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-                ui_context_render(&data->render_context, data->root_view, (float)data->width, (float)data->height, 1.0f,
-                        (float)data->pointer_x, (float)data->pointer_y, data->pointer_down);
+                view_context_render(&data->view_context, data->root_view, (float)data->width, (float)data->height, 1.0f, data->dark_mode, (float)data->pointer_x, (float)data->pointer_y, data->pointer_down);
 
                 SwapBuffers(data->gldc);
 
@@ -561,6 +594,64 @@ static win32_window_data_t* get_window_data(HWND hwnd)
     return (win32_window_data_t*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
 }
 
+/* Custom hit testing — returns which part of the window the mouse is over */
+static LRESULT titlebar_hit_test(HWND hwnd, int x, int y, int titlebar_height)
+{
+    POINT pt = { x, y };
+    ScreenToClient(hwnd, &pt);
+
+    RECT rc;
+    GetClientRect(hwnd, &rc);
+
+    const bool maximized = IsZoomed(hwnd);
+    const int border = maximized ? 0 : 6;
+
+    /* Resize borders only when not maximized */
+    if (!maximized)
+    {
+        if (pt.y < border)
+        {
+            if (pt.x < border) return HTTOPLEFT;
+            if (pt.x >= rc.right - border) return HTTOPRIGHT;
+            return HTTOP;
+        }
+
+        if (pt.y >= rc.bottom - border)
+        {
+            if (pt.x < border) return HTBOTTOMLEFT;
+            if (pt.x >= rc.right - border) return HTBOTTOMRIGHT;
+            return HTBOTTOM;
+        }
+
+        if (pt.x < border) return HTLEFT;
+        if (pt.x >= rc.right - border) return HTRIGHT;
+    }
+
+
+    /* Titlebar area — draggable, enables snap/aero shake */
+    if (pt.y < titlebar_height)
+    {
+        return HTCAPTION;
+
+        #if 0
+        if (workbench_hit_test(&(get_window_data(hwnd)->workbench), {(float)pt.x, (float)pt.y}))
+        {
+            /* MENU BAR HIT TESTING */
+            return HTCLIENT;
+        }
+        else
+        {
+
+        }
+        #endif
+
+    }
+
+
+    return HTCLIENT;
+}
+
+
 static void apply_dwm_frame(HWND hwnd)
 {
     MARGINS margins = { 0, 0, 32, 0 };
@@ -624,6 +715,27 @@ static void print_last_error(const char *context)
     }
 }
 
+static void set_titlebar_color(HWND hwnd, bool dark)
+{
+    BOOL value = dark;
+    DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                            &value, sizeof(value));
+
+    /* Caption background — COLORREF is 0x00BBGGRR */
+    COLORREF caption_color;
+
+    if (dark)
+    {
+        caption_color = RGB(0, 0, 0);
+    }
+    else
+    {
+        caption_color = RGB(255, 255, 255);
+    }
+
+    DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, &caption_color, sizeof(caption_color));
+}
+
 
 static const char* wide_to_utf8(const wchar_t *wstr)
 {
@@ -679,4 +791,22 @@ static const wchar_t* utf8_to_wide(const char *str)
     }
 
     return wstr;
+}
+
+static bool is_dark_mode(void)
+{
+    HKEY key;
+    DWORD value = 1;
+    DWORD size = sizeof(value);
+
+    if (RegOpenKeyExW(HKEY_CURRENT_USER,
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+        0, KEY_READ, &key) == ERROR_SUCCESS)
+    {
+        RegQueryValueExW(key, L"AppsUseLightTheme", NULL, NULL,
+                            (LPBYTE)&value, &size);
+        RegCloseKey(key);
+    }
+
+    return value == 0;
 }

@@ -53,6 +53,8 @@
 #define WGL_FULL_ACCELERATION_ARB                 0x2027
 #define WGL_TYPE_RGBA_ARB                         0x202B
 
+#define IDI_ICON1 101
+
 /***************************************************************
 ** MARK: TYPEDEFS
 ***************************************************************/
@@ -153,6 +155,18 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
 
     SetWindowPos(win32_window, NULL, 0, 0, 0, 0,
         SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+
+    HICON hIcon = (HICON)LoadImage(
+        GetModuleHandle(NULL),
+        MAKEINTRESOURCE(IDI_ICON1),
+        IMAGE_ICON,
+        32,
+        32,
+        LR_DEFAULTCOLOR
+    );
+
+    SendMessage(win32_window, WM_SETICON, ICON_BIG,   (LPARAM)hIcon);
+    SendMessage(win32_window, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
 
     win32_window_data_t* data = (win32_window_data_t*)calloc(1, sizeof(win32_window_data_t));
     data->hwnd = win32_window;

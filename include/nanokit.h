@@ -72,6 +72,8 @@ typedef struct
     const char *title;
     int start_width;
     int start_height;
+    int min_width;
+    int min_height;
     struct nk_view_t *root;
 } nk_window_create_info_t;
 
@@ -101,6 +103,12 @@ typedef struct {
     float max;       /* optional max for grow/fit */
 } nk_sizing_t;
 
+typedef enum {
+    NK_ALIGN_START,
+    NK_ALIGN_CENTER,
+    NK_ALIGN_END
+} nk_align_t;
+
 typedef struct nk_view_t
 {
     size_t type;
@@ -110,12 +118,14 @@ typedef struct nk_view_t
     float corner_radius;
 
     nk_thickness_t padding;
-    nk_thickness_t margin;
 
     nk_direction_t direction;
     nk_sizing_t width;
     nk_sizing_t height;
     float gap;
+
+    nk_align_t align_x;
+    nk_align_t align_y;
 
     struct nk_view_t *parent;
     struct nk_view_t *first_child;
@@ -123,10 +133,17 @@ typedef struct nk_view_t
     struct nk_view_t *next_sibling;
 } nk_view_t;
 
+typedef enum
+{
+    NK_TEXT_NORMAL,
+    NK_TEXT_BOLD
+} nk_text_variant_t;
+
 typedef struct
 {
     nk_color_t color;
     float size;
+    nk_text_variant_t variant;
 } nk_text_info_t;
 
 typedef struct

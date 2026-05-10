@@ -67,6 +67,9 @@ typedef struct {
     HDC gldc;
     int width;
     int height;
+    int offset_y;
+    int min_width;
+    int min_height;
     HCURSOR cursor;
     int pointer_x;
     int pointer_y;
@@ -145,7 +148,7 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
         return false;
     }
 
-    MARGINS margins = {0, 0, 32, 0};
+    MARGINS margins = {0, 0, 30, 0};
     DwmExtendFrameIntoClientArea(win32_window, &margins);
 
     SetWindowPos(win32_window, NULL, 0, 0, 0, 0,
@@ -158,6 +161,8 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
     GetClientRect(win32_window, &client_rect);
     data->width = client_rect.right - client_rect.left;
     data->height = client_rect.bottom - client_rect.top;
+    data->min_width = info->min_width;
+    data->min_height = info->min_height;
     data->cursor = LoadCursorW(NULL, IDC_ARROW);
     data->root_view = info->root;
 
@@ -210,7 +215,12 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
 
     SetWindowLongPtr(win32_window, GWLP_USERDATA, (LONG_PTR)data);
 
-    if (!view_context_init(&data->view_context, "C:/Windows/Fonts/segoeui.ttf"))
+    view_context_create_info_t view_create_info = {
+        .default_font = "C:/Windows/Fonts/segoeui.ttf",
+        .bold_font = "C:/Windows/Fonts/seguisb.ttf"
+    };
+
+    if (!view_context_init(&data->view_context, &view_create_info))
     {
         fprintf(stderr, "Failed to initialize renderer.\n");
     }
@@ -407,6 +417,17 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
             return 0;
         }
 
+        case WM_GETMINMAXINFO:
+        {
+            if (data)
+            {
+                MINMAXINFO* mmi = (MINMAXINFO*)lparam;
+                mmi->ptMinTrackSize.x = data->min_width;
+                mmi->ptMinTrackSize.y = data->min_height;
+            }
+            return 0;
+        }
+
         case WM_NCCALCSIZE:
         {
             if (wparam == TRUE)
@@ -437,7 +458,7 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
 
         case WM_NCHITTEST:
         {
-            int titlebar_h = 32;  /* match your menu bar height */
+            int titlebar_h = 30;  /* match your menu bar height */
             LRESULT hit = titlebar_hit_test(window,
                     GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam), titlebar_h);
 
@@ -475,7 +496,17 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
             if (wparam != SIZE_MINIMIZED && data)
             {
                 data->width = width;
-                data->height = height;
+
+                if (IsZoomed(window))
+                {
+                    data->offset_y = 6;
+                    data->height = height - 6;
+                }
+                else
+                {
+                    data->offset_y = 0;
+                    data->height = height;
+                }
 
                 InvalidateRect(window, NULL, FALSE);
             }
@@ -498,7 +529,18 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
 
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-                view_context_render(&data->view_context, data->root_view, (float)data->width, (float)data->height, 1.0f, data->dark_mode, (float)data->pointer_x, (float)data->pointer_y, data->pointer_down);
+                view_context_render_info_t render_info = {
+                    .width = (float)data->width,
+                    .height = (float)data->height,
+                    .offset_y = (float)data->offset_y,
+                    .dpr = 1.0f,
+                    .dark_mode = data->dark_mode,
+                    .pointer_x = (float)data->pointer_x,
+                    .pointer_y = (float)data->pointer_y,
+                    .mouse_down = data->pointer_down
+                };
+
+                view_context_render(&data->view_context, data->root_view, &render_info);
 
                 SwapBuffers(data->gldc);
 
@@ -631,19 +673,18 @@ static LRESULT titlebar_hit_test(HWND hwnd, int x, int y, int titlebar_height)
     /* Titlebar area — draggable, enables snap/aero shake */
     if (pt.y < titlebar_height)
     {
-        return HTCAPTION;
 
-        #if 0
-        if (workbench_hit_test(&(get_window_data(hwnd)->workbench), {(float)pt.x, (float)pt.y}))
+
+        if (pt.x < 200)
         {
             /* MENU BAR HIT TESTING */
             return HTCLIENT;
         }
         else
         {
-
+            return HTCAPTION;
         }
-        #endif
+
 
     }
 
@@ -654,7 +695,7 @@ static LRESULT titlebar_hit_test(HWND hwnd, int x, int y, int titlebar_height)
 
 static void apply_dwm_frame(HWND hwnd)
 {
-    MARGINS margins = { 0, 0, 32, 0 };
+    MARGINS margins = { 0, 0, 30, 0 };
     DwmExtendFrameIntoClientArea(hwnd, &margins);
 }
 

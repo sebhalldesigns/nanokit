@@ -45,7 +45,8 @@ void label_render(nk_view_t *view)
     Clay_String str = { .chars = label->text, .length = (int32_t)strlen(label->text) };
     CLAY_TEXT(str, CLAY_TEXT_CONFIG({
         .fontSize = (uint16_t)label->text_info.size,
-        .textColor = nk_to_clay_color(label->text_info.color)
+        .textColor = nk_to_clay_color(label->text_info.color),
+        .fontId = label->text_info.variant
     }));
 }
 

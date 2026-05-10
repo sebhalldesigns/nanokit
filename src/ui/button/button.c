@@ -56,6 +56,7 @@ void button_render(nk_view_t *view)
             bg.r = (bg.r + 255) / 2;
             bg.g = (bg.g + 255) / 2;
             bg.b = (bg.b + 255) / 2;
+            bg.a = (255);
         }
 
         Clay_String btn_str = { .chars = btn->text, .length = (int32_t)strlen(btn->text) };

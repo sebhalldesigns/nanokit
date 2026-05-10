@@ -15,6 +15,7 @@
 ** MARK: INCLUDES
 ***************************************************************/
 
+#include "nanokit.h"
 #define CLAY_IMPLEMENTATION
 #include <clay/clay.h>
 
@@ -135,7 +136,7 @@ void nk_view_insert_before(nk_view_t *sibling, nk_view_t *child)
     sibling->prev_sibling = child;
 }
 
-bool view_context_init(view_context_t *context, const char* default_font)
+bool view_context_init(view_context_t *context, view_context_create_info_t *create_info)
 {
     if (!gladLoadGL())
     {
@@ -150,10 +151,17 @@ bool view_context_init(view_context_t *context, const char* default_font)
         return false;
     }
 
-    int font = nvgCreateFont(vg, "default", default_font);
+    int font = nvgCreateFont(vg, "default", create_info->default_font);
     if (font == -1)
     {
         fprintf(stderr, "Failed to load font\n");
+        return false;
+    }
+
+    int bold_font = nvgCreateFont(vg, "default-bold", create_info->bold_font);
+    if (bold_font == -1)
+    {
+        fprintf(stderr, "Failed to load bold font\n");
         return false;
     }
 
@@ -173,23 +181,25 @@ bool view_context_init(view_context_t *context, const char* default_font)
     return true;
 }
 
-void view_context_render(view_context_t *context, nk_view_t *root, float width, float height, float dpr, bool dark_mode, float pointer_x, float pointer_y, bool mouse_down)
+void view_context_render(view_context_t *context, nk_view_t *root, view_context_render_info_t *render_info)
 {
     NVGcontext* vg = (NVGcontext*)(*context);
 
-    Clay_SetLayoutDimensions((Clay_Dimensions){width, height});
-    Clay_SetPointerState((Clay_Vector2){.x = pointer_x, .y = pointer_y}, mouse_down);
+    Clay_SetLayoutDimensions((Clay_Dimensions){render_info->width, render_info->height});
+    Clay_SetPointerState((Clay_Vector2){.x = render_info->pointer_x, .y = render_info->pointer_y - render_info->offset_y}, render_info->mouse_down);
     Clay_BeginLayout();
 
     render_view(root);
 
-    nvgBeginFrame(vg, width, height, dpr);
+    nvgBeginFrame(vg, render_info->width, render_info->height, render_info->dpr);
+
+    nvgTranslate(vg, 0, render_info->offset_y);
 
     nvgBeginPath(vg);
 
-    nvgRect(vg, 0.0f, 32.0f, width, height - 32.0f);
+    nvgRect(vg, 0.0f, 30.0f, render_info->width, render_info->height - 30.0f);
 
-    if (dark_mode)
+    if (render_info->dark_mode)
     {
         nvgFillColor(vg, nvgRGBA(0, 0, 0, 255));
     }
@@ -242,7 +252,16 @@ static Clay_Dimensions measure_text(Clay_StringSlice text, Clay_TextElementConfi
     (void)userData;
 
     nvgFontSize(g_vg, config->fontSize);
-    nvgFontFace(g_vg, "default");
+
+    switch (config->fontId)
+    {
+        case NK_TEXT_BOLD:
+            nvgFontFace(g_vg, "default-bold");
+            break;
+        default:
+            nvgFontFace(g_vg, "default");
+            break;
+    }
 
     float bounds[4];
     nvgTextBounds(g_vg, 0, 0, text.chars, text.chars + text.length, bounds);
@@ -252,7 +271,7 @@ static Clay_Dimensions measure_text(Clay_StringSlice text, Clay_TextElementConfi
 
     return (Clay_Dimensions){
         .width = bounds[2] - bounds[0],
-        .height = lineHeight
+        .height = bounds[3] - bounds[1]
     };
 }
 
@@ -287,17 +306,28 @@ static void render_clay_commands(NVGcontext *vg)
             {
                 Clay_TextRenderData *data = &cmd->renderData.text;
                 nvgFontSize(vg, data->fontSize);
-                nvgFontFace(vg, "default");
+
+                switch (data->fontId)
+                {
+                    case NK_TEXT_BOLD:
+                        nvgFontFace(vg, "default-bold");
+                        break;
+                    default:
+                        nvgFontFace(vg, "default");
+                        break;
+                }
+
                 nvgFillColor(vg, nvgRGBA(
                     data->textColor.r,
                     data->textColor.g,
                     data->textColor.b,
                     data->textColor.a
                 ));
-                nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
-                nvgText(vg, box.x, box.y,
-                        data->stringContents.chars,
-                        data->stringContents.chars + data->stringContents.length);
+
+                nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+                nvgText(vg, box.x, box.y + box.height * 0.5f + 1.0f,
+                            data->stringContents.chars,
+                            data->stringContents.chars + data->stringContents.length);
                 break;
             }
 
@@ -394,6 +424,14 @@ static void render_view(nk_view_t *view)
                         .top = view->padding.top,
                         .right = view->padding.right,
                         .bottom = view->padding.bottom
+                    },
+                    .childAlignment = {
+                        .x = (view->align_x == NK_ALIGN_CENTER) ? CLAY_ALIGN_X_CENTER
+                            : (view->align_x == NK_ALIGN_END)    ? CLAY_ALIGN_X_RIGHT
+                            :                                      CLAY_ALIGN_X_LEFT,
+                        .y = (view->align_y == NK_ALIGN_CENTER) ? CLAY_ALIGN_Y_CENTER
+                            : (view->align_y == NK_ALIGN_END)    ? CLAY_ALIGN_Y_BOTTOM
+                            :                                      CLAY_ALIGN_Y_TOP
                     },
                     .childGap = view->gap,
                     .layoutDirection = (view->direction == NK_DIRECTION_HORIZONTAL)

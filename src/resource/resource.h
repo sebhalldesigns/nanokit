@@ -2,17 +2,17 @@
 **
 ** Nanokit Header File
 **
-** File         :  view.h
-** Module       :  ui/view
+** File         :  resource.h
+** Module       :  ui/resource
 ** Author       :  SH
-** Created      :  2026-05-09 (YYYY-MM-DD)
+** Created      :  2026-05-10 (YYYY-MM-DD)
 ** License      :  MIT
-** Description  :  Nanokit View Interface Definition
+** Description  :  Nanokit Resource Interface Definition
 **
 ***************************************************************/
 
-#ifndef VIEW_H
-#define VIEW_H
+#ifndef RESOURCE_H
+#define RESOURCE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,12 +24,6 @@ extern "C" {
 
 #include <nanokit.h>
 
-#include <clay/clay.h>
-
-#include <ui/label/label.h>
-#include <ui/button/button.h>
-#include <ui/label/label.h>
-
 /***************************************************************
 ** MARK: CONSTANTS & MACROS
 ***************************************************************/
@@ -38,42 +32,37 @@ extern "C" {
 ** MARK: TYPEDEFS
 ***************************************************************/
 
-typedef uintptr_t view_context_t;
+typedef enum
+{
+    NK_RESOURCE_APPEARANCE_LIGHT,
+    NK_RESOURCE_APPEARANCE_DARK,
+    NK_RESOURCE_APPERANCE_MAX
+} nk_resource_appearance_mode_t;
 
 typedef struct
 {
-    const char* default_font;
-    const char* bold_font;
-} view_context_create_info_t;
-
-typedef struct
-{
-    float width;
-    float height;
-    float offset_y;
-    float dpr;
-    bool dark_mode;
-    float pointer_x;
-    float pointer_y;
-    bool mouse_down;
-} view_context_render_info_t;
-
+    nk_color_t colors[NK_RESOURCE_APPERANCE_MAX];
+} nk_dynamic_color_t;
 
 /***************************************************************
 ** MARK: FUNCTION DEFS
 ***************************************************************/
 
-bool view_context_init(view_context_t *context, view_context_create_info_t *create_info);
+void resource_init(void);
+void resource_destroy(void);
 
-void view_context_render(view_context_t *context, nk_view_t *root, view_context_render_info_t *render_info);
+void resource_set_system_appearance(nk_resource_appearance_mode_t appearance);
 
-Clay_Color nk_to_clay_color(nk_color_t c);
+void resource_set_dynamic_color(uint32_t key, nk_dynamic_color_t value);
+void resource_set_float(uint32_t key, float value);
 
-Clay_SizingAxis nk_to_clay_sizing(nk_sizing_t s);
+nk_color_t resource_get_dynamic_color(uint32_t key);
+float resource_get_float(uint32_t key);
 
+void resource_load_default(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* VIEW_H */
+#endif /* RESOURCE_H */

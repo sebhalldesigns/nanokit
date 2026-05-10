@@ -16,6 +16,8 @@
 ***************************************************************/
 
 #include <nanokit.h>
+#include <backend/backend.h>
+#include <resource/resource.h>
 #include <ui/view/view.h>
 
 #include <string.h>
@@ -23,7 +25,6 @@
 
 #include <dwmapi.h>
 #include <winreg.h>
-
 
 #include <glad/glad.h>
 #include <winuser.h>
@@ -101,8 +102,6 @@ static PFNWGLGETSWAPINTERVALEXTPROC wglGetSwapIntervalEXT = NULL;
 ** MARK: STATIC FUNCTION DEFS
 ***************************************************************/
 
-static bool backend_init();
-
 static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, LPARAM lparam);
 
 static win32_window_data_t* get_window_data(HWND hwnd);
@@ -121,6 +120,118 @@ static bool is_dark_mode(void);
 /***************************************************************
 ** MARK: PUBLIC FUNCTIONS
 ***************************************************************/
+
+bool backend_init()
+{
+    instance_handle = GetModuleHandle(NULL);
+    set_process_dpi_awareness();
+
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+
+    memset(&window_class, 0, sizeof(window_class));
+    window_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
+    window_class.lpfnWndProc = window_procedure;
+    window_class.hInstance = instance_handle;
+    window_class.hCursor = LoadCursorW(NULL, IDC_ARROW);
+    window_class.hbrBackground = NULL;
+    window_class.lpszClassName = L"NANOKIT_WINDOW_CLASS";
+
+    if (!RegisterClassW(&window_class))
+    {
+        fprintf(stderr, "Failed to register NANOKIT_WINDOW_CLASS.");
+        return false;
+    }
+
+    WNDCLASSW gl_window_class = { 0 };
+    gl_window_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
+    gl_window_class.lpfnWndProc = DefWindowProcW;
+    gl_window_class.hInstance = GetModuleHandle(0);
+    gl_window_class.lpszClassName = L"NANOKIT_GL_INIT_WINDOW_CLASS";
+
+    if (!RegisterClassW(&gl_window_class))
+    {
+        fprintf(stderr, "Failed to register OpenGL init window.");
+        return false;
+    }
+
+    HWND dummy_window = CreateWindowExW(
+        0,
+        gl_window_class.lpszClassName,
+        L"OpenGL Init Window",
+        0,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        0,
+        0,
+        gl_window_class.hInstance,
+        0
+    );
+
+    if (!dummy_window)
+    {
+        fprintf(stderr, "Failed to create OpenGL init window.");
+        return false;
+    }
+
+    HDC dummy_dc = GetDC(dummy_window);
+
+    pfd.nSize = sizeof(pfd);
+    pfd.nVersion = 1;
+    pfd.iPixelType = PFD_TYPE_RGBA;
+    pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+    pfd.cColorBits = 32;
+    pfd.cAlphaBits = 8;
+    pfd.iLayerType = PFD_MAIN_PLANE;
+    pfd.cDepthBits = 24;
+    pfd.cStencilBits = 8;
+
+
+    pixel_format = ChoosePixelFormat(dummy_dc, &pfd);
+    if (!pixel_format)
+    {
+        fprintf(stderr, "Failed to find a suitable pixel format.");
+        return false;
+    }
+
+    if (!SetPixelFormat(dummy_dc, pixel_format, &pfd))
+    {
+        fprintf(stderr, "Failed to set the pixel format.");
+        return false;
+    }
+
+    HGLRC dummy_context = wglCreateContext(dummy_dc);
+    if (!dummy_context)
+    {
+        fprintf(stderr, "Failed to create an OpenGL rendering context.");
+        return false;
+    }
+
+    if (!wglMakeCurrent(dummy_dc, dummy_context))
+    {
+        fprintf(stderr, "Failed to activate OpenGL rendering context.");
+        return false;
+    }
+
+    wglCreateContextAttribsARB = (wglCreateContextAttribsARB_type*)wglGetProcAddress(
+        "wglCreateContextAttribsARB");
+    wglChoosePixelFormatARB = (wglChoosePixelFormatARB_type*)wglGetProcAddress(
+        "wglChoosePixelFormatARB");
+
+    wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)
+        wglGetProcAddress("wglSwapIntervalEXT");
+
+    wglGetSwapIntervalEXT = (PFNWGLGETSWAPINTERVALEXTPROC)
+        wglGetProcAddress("wglGetSwapIntervalEXT");
+
+    wglMakeCurrent(dummy_dc, 0);
+    wglDeleteContext(dummy_context);
+    ReleaseDC(dummy_window, dummy_dc);
+    DestroyWindow(dummy_window);
+
+    return true;
+}
 
 bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
 {
@@ -249,15 +360,8 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
     return true;
 }
 
-int nk_run(nk_run_info_t *info, int argc, char **argv)
+int backend_run(nk_run_info_t *info, int argc, char **argv)
 {
-    printf("Hello world!\n");
-
-    if (!backend_init())
-    {
-        fprintf(stderr, "Failed to initialize backend.\n");
-        return -1;
-    }
 
     info->launch_callback();
 
@@ -289,118 +393,6 @@ int nk_run(nk_run_info_t *info, int argc, char **argv)
 ** MARK: STATIC FUNCTIONS
 ***************************************************************/
 
-
-static bool backend_init()
-{
-    instance_handle = GetModuleHandle(NULL);
-    set_process_dpi_awareness();
-
-    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
-
-    memset(&window_class, 0, sizeof(window_class));
-    window_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
-    window_class.lpfnWndProc = window_procedure;
-    window_class.hInstance = instance_handle;
-    window_class.hCursor = LoadCursorW(NULL, IDC_ARROW);
-    window_class.hbrBackground = NULL;
-    window_class.lpszClassName = L"NANOKIT_WINDOW_CLASS";
-
-    if (!RegisterClassW(&window_class))
-    {
-        fprintf(stderr, "Failed to register NANOKIT_WINDOW_CLASS.");
-        return false;
-    }
-
-    WNDCLASSW gl_window_class = { 0 };
-    gl_window_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
-    gl_window_class.lpfnWndProc = DefWindowProcW;
-    gl_window_class.hInstance = GetModuleHandle(0);
-    gl_window_class.lpszClassName = L"NANOKIT_GL_INIT_WINDOW_CLASS";
-
-    if (!RegisterClassW(&gl_window_class))
-    {
-        fprintf(stderr, "Failed to register OpenGL init window.");
-        return false;
-    }
-
-    HWND dummy_window = CreateWindowExW(
-        0,
-        gl_window_class.lpszClassName,
-        L"OpenGL Init Window",
-        0,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        0,
-        0,
-        gl_window_class.hInstance,
-        0
-    );
-
-    if (!dummy_window)
-    {
-        fprintf(stderr, "Failed to create OpenGL init window.");
-        return false;
-    }
-
-    HDC dummy_dc = GetDC(dummy_window);
-
-    pfd.nSize = sizeof(pfd);
-    pfd.nVersion = 1;
-    pfd.iPixelType = PFD_TYPE_RGBA;
-    pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-    pfd.cColorBits = 32;
-    pfd.cAlphaBits = 8;
-    pfd.iLayerType = PFD_MAIN_PLANE;
-    pfd.cDepthBits = 24;
-    pfd.cStencilBits = 8;
-
-
-    pixel_format = ChoosePixelFormat(dummy_dc, &pfd);
-    if (!pixel_format)
-    {
-        fprintf(stderr, "Failed to find a suitable pixel format.");
-        return false;
-    }
-
-    if (!SetPixelFormat(dummy_dc, pixel_format, &pfd))
-    {
-        fprintf(stderr, "Failed to set the pixel format.");
-        return false;
-    }
-
-    HGLRC dummy_context = wglCreateContext(dummy_dc);
-    if (!dummy_context)
-    {
-        fprintf(stderr, "Failed to create an OpenGL rendering context.");
-        return false;
-    }
-
-    if (!wglMakeCurrent(dummy_dc, dummy_context))
-    {
-        fprintf(stderr, "Failed to activate OpenGL rendering context.");
-        return false;
-    }
-
-    wglCreateContextAttribsARB = (wglCreateContextAttribsARB_type*)wglGetProcAddress(
-        "wglCreateContextAttribsARB");
-    wglChoosePixelFormatARB = (wglChoosePixelFormatARB_type*)wglGetProcAddress(
-        "wglChoosePixelFormatARB");
-
-    wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)
-        wglGetProcAddress("wglSwapIntervalEXT");
-
-    wglGetSwapIntervalEXT = (PFNWGLGETSWAPINTERVALEXTPROC)
-        wglGetProcAddress("wglGetSwapIntervalEXT");
-
-    wglMakeCurrent(dummy_dc, 0);
-    wglDeleteContext(dummy_context);
-    ReleaseDC(dummy_window, dummy_dc);
-    DestroyWindow(dummy_window);
-
-    return true;
-}
 
 static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, LPARAM lparam)
 {
@@ -489,6 +481,8 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
                 data->dark_mode = is_dark_mode();
                 /* Update your theme */
                 printf("Dark mode: %s\n", data->dark_mode ? "true" : "false");
+
+                resource_set_system_appearance(data->dark_mode ? NK_RESOURCE_APPEARANCE_DARK : NK_RESOURCE_APPEARANCE_LIGHT);
 
                 set_titlebar_color(window, data->dark_mode);
 
@@ -779,14 +773,10 @@ static void set_titlebar_color(HWND hwnd, bool dark)
     /* Caption background — COLORREF is 0x00BBGGRR */
     COLORREF caption_color;
 
-    if (dark)
-    {
-        caption_color = RGB(0, 0, 0);
-    }
-    else
-    {
-        caption_color = RGB(255, 255, 255);
-    }
+    nk_color_t background_secondary_color = resource_get_dynamic_color(NKRES_COLOR_BACKGROUND_TERTIARY);
+    caption_color = ((BYTE)(background_secondary_color.r * 255) << 0) |
+                    ((BYTE)(background_secondary_color.g * 255) << 8) |
+                    ((BYTE)(background_secondary_color.b * 255) << 16);
 
     DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, &caption_color, sizeof(caption_color));
 }

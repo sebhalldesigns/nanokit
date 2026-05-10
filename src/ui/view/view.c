@@ -15,10 +15,11 @@
 ** MARK: INCLUDES
 ***************************************************************/
 
-#include "nanokit.h"
+#include <nanokit.h>
 #define CLAY_IMPLEMENTATION
 #include <clay/clay.h>
 
+#include <resource/resource.h>
 #include <ui/view/view.h>
 
 #include <glad.h>
@@ -193,20 +194,20 @@ void view_context_render(view_context_t *context, nk_view_t *root, view_context_
 
     nvgBeginFrame(vg, render_info->width, render_info->height, render_info->dpr);
 
-    nvgTranslate(vg, 0, render_info->offset_y);
+    //nvgTranslate(vg, 0, render_info->offset_y);
 
     nvgBeginPath(vg);
 
-    nvgRect(vg, 0.0f, 30.0f, render_info->width, render_info->height - 30.0f);
+    nvgRect(vg, 0.0f, 30.0f - render_info->offset_y, render_info->width, render_info->height - 30.0f + render_info->offset_y);
 
-    if (render_info->dark_mode)
-    {
-        nvgFillColor(vg, nvgRGBA(0, 0, 0, 255));
-    }
-    else
-    {
-        nvgFillColor(vg, nvgRGBA(255, 255, 255, 255));
-    }
+    nk_color_t background_secondary_color = resource_get_dynamic_color(NKRES_COLOR_BACKGROUND_TERTIARY);
+
+    nvgFillColor(vg, nvgRGBA(
+        background_secondary_color.r * 255.0f,
+        background_secondary_color.g * 255.0f,
+        background_secondary_color.b * 255.0f,
+        background_secondary_color.a * 255.0f
+    ));
 
     nvgFill(vg);
 
@@ -438,7 +439,7 @@ static void render_view(nk_view_t *view)
                         ? CLAY_LEFT_TO_RIGHT
                         : CLAY_TOP_TO_BOTTOM
                 },
-                .backgroundColor = nk_to_clay_color(view->background),
+                .backgroundColor = nk_to_clay_color(resource_get_dynamic_color(view->background_resource)),
                 .cornerRadius = CLAY_CORNER_RADIUS(view->corner_radius)
             })
             {

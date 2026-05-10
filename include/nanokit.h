@@ -54,6 +54,15 @@ extern "C" {
 ** MARK: TYPEDEFS
 ***************************************************************/
 
+typedef enum
+{
+    NKRES_NONE,
+    NKRES_COLOR_TEXT_PRIMARY,
+    NKRES_COLOR_BACKGROUND_PRIMARY,
+    NKRES_COLOR_BACKGROUND_SECONDARY,
+    NKRES_COLOR_BACKGROUND_TERTIARY
+} nk_resource_t;
+
 typedef void (*nk_void_callback_t)(void);
 typedef bool (*nk_bool_callback_t)(void);
 
@@ -114,7 +123,7 @@ typedef struct nk_view_t
     size_t type;
     const char *id;
 
-    nk_color_t background;
+    nk_resource_t background_resource;
     float corner_radius;
 
     nk_thickness_t padding;
@@ -141,7 +150,7 @@ typedef enum
 
 typedef struct
 {
-    nk_color_t color;
+    nk_resource_t color_resource;
     float size;
     nk_text_variant_t variant;
 } nk_text_info_t;
@@ -152,6 +161,7 @@ typedef struct
 
     const char *text;
     nk_text_info_t text_info;
+    const char *tooltip;
 
     nk_void_callback_t press_callback;
 } nk_button_t;
@@ -164,11 +174,23 @@ typedef struct
     nk_text_info_t text_info;
 } nk_label_t;
 
+typedef struct
+{
+    nk_view_t view;
+
+    const char *heading;
+
+    const char **entries;
+    size_t entries_count;
+
+} nk_menu_t;
+
 typedef enum
 {
     NK_VIEW,
     NK_LABEL,
-    NK_BUTTON
+    NK_BUTTON,
+    NK_MENU
 } nk_type_t;
 
 /***************************************************************

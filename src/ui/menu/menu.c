@@ -2,12 +2,12 @@
 **
 ** Nanokit Source File
 **
-** File         :  button.c
-** Module       :  ui/button
+** File         :  menu.c
+** Module       :  ui/menu
 ** Author       :  SH
-** Created      :  2026-05-09 (YYYY-MM-DD)
+** Created      :  2026-05-10 (YYYY-MM-DD)
 ** License      :  MIT
-** Description  :  Nanokit Button Implementation
+** Description  :  Nanokit Menu Implementation
 **
 ***************************************************************/
 
@@ -18,8 +18,6 @@
 #include <nanokit.h>
 
 #include <ui/view/view.h>
-
-#include <resource/resource.h>
 
 /***************************************************************
 ** MARK: CONSTANTS & MACROS
@@ -43,7 +41,7 @@
 void button_render(nk_view_t *view)
 {
     nk_button_t *btn = (nk_button_t *)view;
-    Clay_Color bg = nk_to_clay_color(resource_get_dynamic_color(view->background_resource));
+    Clay_Color bg = nk_to_clay_color(view->background);
 
     if (!view->id) return;
 
@@ -83,8 +81,45 @@ void button_render(nk_view_t *view)
     }) {
         CLAY_TEXT(btn_str, CLAY_TEXT_CONFIG({
             .fontSize = (uint16_t)btn->text_info.size,
-            .textColor = nk_to_clay_color(resource_get_dynamic_color(btn->text_info.color_resource)),
+            .textColor = nk_to_clay_color(btn->text_info.color)
         }));
+
+        // Floating tooltip anchored to this button
+        if (hovered && btn->tooltip)
+        {
+            CLAY({
+                .id = Clay_GetElementId(CLAY_STRING("tooltip")),
+                .floating = {
+                    .attachTo = CLAY_ATTACH_TO_ELEMENT_WITH_ID,
+                    .parentId = clay_id.id,
+                    .attachPoints = {
+                        .element = CLAY_ATTACH_POINT_LEFT_TOP,
+                        .parent = CLAY_ATTACH_POINT_LEFT_BOTTOM
+                    },
+                    .offset = { .y = -4 },
+                    .zIndex = 100,
+                    .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH
+                },
+                .backgroundColor = { 255, 0, 0, 255 },
+                .layout = {
+                    .sizing = {
+                        .width = CLAY_SIZING_FIXED(200),
+                        .height = CLAY_SIZING_FIXED(40)
+                    },
+                    .padding = { 8, 6, 8, 6 }
+                },
+                .cornerRadius = CLAY_CORNER_RADIUS(4)
+            }) {
+                Clay_String tooltip_str = {
+                    .chars = btn->tooltip,
+                    .length = (int32_t)strlen(btn->tooltip)
+                };
+                CLAY_TEXT(tooltip_str, CLAY_TEXT_CONFIG({
+                    .fontSize = 12,
+                    .textColor = { 230, 230, 230, 255 }
+                }));
+            }
+        }
     }
 }
 

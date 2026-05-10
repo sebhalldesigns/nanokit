@@ -36,6 +36,8 @@ elseif(LINUX)
 endif()
 
 add_library(nanokit STATIC
+    src/lib.c
+    src/resource/resource.c
     src/ui/view/view.c
     src/ui/label/label.c
     src/ui/button/button.c

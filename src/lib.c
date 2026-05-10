@@ -2,12 +2,12 @@
 **
 ** Nanokit Source File
 **
-** File         :  view.c
-** Module       :  ui/view
+** File         :  lib.c
+** Module       :  nanokit
 ** Author       :  SH
-** Created      :  2026-05-09 (YYYY-MM-DD)
+** Created      :  2026-05-10 (YYYY-MM-DD)
 ** License      :  MIT
-** Description  :  Nanokit View Implementation
+** Description  :  Nanokit Root Implementation
 **
 ***************************************************************/
 
@@ -17,8 +17,7 @@
 
 #include <nanokit.h>
 
-#include <ui/view/view.h>
-
+#include <backend/backend.h>
 #include <resource/resource.h>
 
 /***************************************************************
@@ -41,15 +40,23 @@
 ** MARK: PUBLIC FUNCTIONS
 ***************************************************************/
 
-void label_render(nk_view_t *view)
+int nk_run(nk_run_info_t *info, int argc, char **argv)
 {
-    nk_label_t *label = (nk_label_t *)view;
-    Clay_String str = { .chars = label->text, .length = (int32_t)strlen(label->text) };
-    CLAY_TEXT(str, CLAY_TEXT_CONFIG({
-        .fontSize = (uint16_t)label->text_info.size,
-        .textColor = nk_to_clay_color(resource_get_dynamic_color(label->text_info.color_resource)),
-        .fontId = label->text_info.variant
-    }));
+    if (!backend_init())
+    {
+        fprintf(stderr, "Failed to initialize backend.\n");
+        return -1;
+    }
+
+    resource_init();
+
+    resource_load_default();
+
+    int backend_code = backend_run(info, argc, argv);
+
+    resource_destroy();
+
+    return backend_code;
 }
 
 /***************************************************************

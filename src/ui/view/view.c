@@ -29,6 +29,8 @@
 #include <nanovg.h>
 #include <nanovg_gl.h>
 
+#include <string.h>
+
 /***************************************************************
 ** MARK: CONSTANTS & MACROS
 ***************************************************************/
@@ -198,7 +200,11 @@ void view_context_render(view_context_t *context, nk_view_t *root, view_context_
 
     nvgBeginPath(vg);
 
+    #if _WIN32
     nvgRect(vg, 0.0f, 30.0f - render_info->offset_y, render_info->width, render_info->height - 30.0f + render_info->offset_y);
+    #else
+    nvgRect(vg, 0.0f, render_info->offset_y, render_info->width, render_info->height + render_info->offset_y);
+    #endif
 
     nk_color_t background_secondary_color = resource_get_dynamic_color(NKRES_COLOR_BACKGROUND_TERTIARY);
 
@@ -307,7 +313,7 @@ static void render_clay_commands(NVGcontext *vg)
             {
                 Clay_TextRenderData *data = &cmd->renderData.text;
                 nvgFontSize(vg, data->fontSize);
-
+                
                 switch (data->fontId)
                 {
                     case NK_TEXT_BOLD:

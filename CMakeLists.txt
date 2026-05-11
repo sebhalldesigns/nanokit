@@ -33,6 +33,24 @@ elseif(LINUX)
     set(BACKEND_INCLUDES
         ${GTK4_INCLUDE_DIRS}
     )
+elseif(APPLE)
+
+    enable_language(OBJC)
+    
+    set(BACKEND_SRC
+        src/backend/cocoa/cocoa.m
+    )
+
+    set(BACKEND_LIBS
+        "-framework Cocoa"
+        "-framework OpenGL"
+        "-framework CoreVideo"
+        "-framework QuartzCore"
+    )
+
+    set(BACKEND_INCLUDES
+    
+    )
 endif()
 
 add_library(nanokit STATIC

@@ -15,28 +15,26 @@ if (WIN32)
     )
 elseif(LINUX)
 
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(GTK4 REQUIRED gtk4)
-
     set(BACKEND_SRC
-        src/backend/gtk/gtk.c
+        src/backend/glfw/glfw.c
     )
 
     set(BACKEND_LIBS
+        glfw
         EGL
         GL
         m
         fontconfig
-        ${GTK4_LIBRARIES}
+
     )
 
     set(BACKEND_INCLUDES
-        ${GTK4_INCLUDE_DIRS}
+
     )
 elseif(APPLE)
 
     enable_language(OBJC)
-    
+
     set(BACKEND_SRC
         src/backend/cocoa/cocoa.m
     )
@@ -49,7 +47,7 @@ elseif(APPLE)
     )
 
     set(BACKEND_INCLUDES
-    
+
     )
 endif()
 

@@ -17,7 +17,7 @@
 
 #include <nanokit.h>
 
-#include <ui/view/view.h>
+#include <ui/ui.h>
 
 #include <resource/resource.h>
 

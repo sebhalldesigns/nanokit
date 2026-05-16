@@ -15,13 +15,21 @@
 ** MARK: INCLUDES
 ***************************************************************/
 
+#include "ui/view/view.h"
 #include <nanokit.h>
 
-#include <ui/view/view.h>
+#include <stdio.h>
+#include <ui/ui.h>
+
+#include <resource/resource.h>
+
+#include <string.h>
 
 /***************************************************************
 ** MARK: CONSTANTS & MACROS
 ***************************************************************/
+
+
 
 /***************************************************************
 ** MARK: TYPEDEFS
@@ -38,29 +46,86 @@
 /***************************************************************
 ** MARK: PUBLIC FUNCTIONS
 ***************************************************************/
-void button_render(nk_view_t *view)
+
+void nk_menu_init(nk_menu_t *menu, nk_menubar_t *menubar)
 {
-    nk_button_t *btn = (nk_button_t *)view;
-    Clay_Color bg = nk_to_clay_color(view->background);
+    static char id_buffer[ID_MAX_STRING_LENGTH];
+
+    menu->view.type = NK_MENU;
+    menu->view.id = ui_id_from_fmt("menu:%s", menu->heading);
+    menu->view.width.type = NK_SIZING_FIT;
+    menu->view.height.type = NK_SIZING_FIT;
+    menu->view.padding.left = 6;
+    menu->view.padding.right = 6;
+    menu->view.padding.top = 4;
+    menu->view.padding.bottom = 4;
+    menu->view.corner_radius = resource_get_float(NKRES_SIZE_BUTTON_CORNER_RADIUS);
+
+    menu->popup.type = NK_VIEW;
+    menu->popup.id = ui_id_from_fmt("menu/popup:%s", menu->heading);
+    menu->popup.height.type = NK_SIZING_GROW;
+    menu->popup.gap = 2.0f;
+
+    for (int i = 0; i < menu->entries_count; i++)
+    {
+        menu->entries[i].button.view.type = NK_LABEL;
+        menu->entries[i].button.text = menu->entries[i].title;
+        menu->entries[i].button.button_type = NK_BUTTON_SECONDARY;
+
+        menu->entries[i].button.secondary_text = menu->entries[i].shortcut;
+
+        nk_button_init(&menu->entries[i].button);
+        menu->entries[i].button.view.width.type = NK_SIZING_GROW;
+
+        nk_view_add_child(&menu->popup, &menu->entries[i].button.view);
+    }
+
+    menu->parent_menubar = menubar;
+}
+
+void menu_render(nk_view_t *view)
+{
+    nk_menu_t *menu = (nk_menu_t *)view;
 
     if (!view->id) return;
 
-    Clay_ElementId clay_id = Clay_GetElementId((Clay_String){
-        .chars = view->id,
-        .length = (int32_t)strlen(view->id)
-    });
+    Clay_ElementId clay_id = { .id = menu->view.id };
 
-    bool hovered = Clay_PointerOver(clay_id);
+    Clay_ElementId popup_id = { .id = menu->popup.id };
 
-    if (hovered)
+    bool hovered_header = Clay_PointerOver(clay_id);
+
+    bool hovered_either = Clay_PointerOver(clay_id) || Clay_PointerOver(popup_id);
+
+    bool popup_open = menu->parent_menubar->is_open && menu->parent_menubar->open_menu == menu;
+
+    if (hovered_header || popup_open)
     {
-        bg.r = (bg.r + 255) / 2;
-        bg.g = (bg.g + 255) / 2;
-        bg.b = (bg.b + 255) / 2;
-        bg.a = 255;
+        menu->view.background_resource = NKRES_COLOR_BACKGROUND_BUTTON_SECONDARY;
+    }
+    else
+    {
+        menu->view.background_resource = NKRES_NONE;
     }
 
-    Clay_String btn_str = { .chars = btn->text, .length = (int32_t)strlen(btn->text) };
+    Clay_Color bg = nk_to_clay_color(resource_get_dynamic_color(view->background_resource));
+
+    Clay_String btn_str = { .chars = menu->heading, .length = (int32_t)strlen(menu->heading) };
+
+    /* capture opening of menubar  */
+    if (hovered_header && ui_pointer_press() && !menu->parent_menubar->is_open)
+    {
+        menu->parent_menubar->is_open = true;
+        menu->parent_menubar->open_menu = menu;
+        menu->parent_menubar->is_initial_press = true;
+    }
+    /* capture switch to this menu  */
+    else if (menu->parent_menubar->is_open
+        && hovered_header
+        && menu->parent_menubar->open_menu != menu)
+   {
+       menu->parent_menubar->open_menu = menu;
+   }
 
     CLAY({
         .id = clay_id,
@@ -80,15 +145,15 @@ void button_render(nk_view_t *view)
         .cornerRadius = CLAY_CORNER_RADIUS(view->corner_radius)
     }) {
         CLAY_TEXT(btn_str, CLAY_TEXT_CONFIG({
-            .fontSize = (uint16_t)btn->text_info.size,
-            .textColor = nk_to_clay_color(btn->text_info.color)
+            .fontSize = (uint16_t)resource_get_float(NKRES_SIZE_TEXT_PRIMARY),
+            .textColor = nk_to_clay_color(resource_get_dynamic_color(NKRES_COLOR_TEXT_PRIMARY))
         }));
 
-        // Floating tooltip anchored to this button
-        if (hovered && btn->tooltip)
+        /* Floating tooltip anchored to this button  */
+        if (popup_open)
         {
             CLAY({
-                .id = Clay_GetElementId(CLAY_STRING("tooltip")),
+                .id = popup_id,
                 .floating = {
                     .attachTo = CLAY_ATTACH_TO_ELEMENT_WITH_ID,
                     .parentId = clay_id.id,
@@ -96,28 +161,25 @@ void button_render(nk_view_t *view)
                         .element = CLAY_ATTACH_POINT_LEFT_TOP,
                         .parent = CLAY_ATTACH_POINT_LEFT_BOTTOM
                     },
-                    .offset = { .y = -4 },
+                    .offset = { .y = 0, .x = 0 },
                     .zIndex = 100,
                     .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH
                 },
-                .backgroundColor = { 255, 0, 0, 255 },
+                .backgroundColor = nk_to_clay_color(resource_get_dynamic_color(NKRES_COLOR_BACKGROUND_TERTIARY)),
+                .border = {
+                    .color = nk_to_clay_color(resource_get_dynamic_color(NKRES_COLOR_BACKGROUND_POPUP)),
+                    .width = CLAY_BORDER_OUTSIDE(1)
+                },
                 .layout = {
                     .sizing = {
                         .width = CLAY_SIZING_FIXED(200),
-                        .height = CLAY_SIZING_FIXED(40)
+                        .height = CLAY__SIZING_TYPE_FIT
                     },
-                    .padding = { 8, 6, 8, 6 }
+                    .padding = { 3, 3, 3, 3 },
                 },
-                .cornerRadius = CLAY_CORNER_RADIUS(4)
+                .cornerRadius = CLAY_CORNER_RADIUS(resource_get_float(NKRES_SIZE_POPUP_CORNER_RADIUS))
             }) {
-                Clay_String tooltip_str = {
-                    .chars = btn->tooltip,
-                    .length = (int32_t)strlen(btn->tooltip)
-                };
-                CLAY_TEXT(tooltip_str, CLAY_TEXT_CONFIG({
-                    .fontSize = 12,
-                    .textColor = { 230, 230, 230, 255 }
-                }));
+                view_render(&menu->popup);
             }
         }
     }

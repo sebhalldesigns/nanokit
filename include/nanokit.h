@@ -25,6 +25,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <assert.h>
 
 #ifdef _WIN32
 #ifndef UNICODE
@@ -58,15 +59,23 @@ typedef enum
 {
     NKRES_NONE,
     NKRES_COLOR_TEXT_PRIMARY,
+    NKRES_COLOR_TEXT_SECONDARY,
     NKRES_COLOR_BACKGROUND_PRIMARY,
     NKRES_COLOR_BACKGROUND_SECONDARY,
-    NKRES_COLOR_BACKGROUND_TERTIARY
+    NKRES_COLOR_BACKGROUND_TERTIARY,
+    NKRES_COLOR_BACKGROUND_POPUP,
+    NKRES_COLOR_BACKGROUND_BUTTON_SECONDARY,
+    NKRES_COLOR_RED,
+    NKRES_SIZE_TEXT_PRIMARY,
+    NKRES_SIZE_BUTTON_CORNER_RADIUS,
+    NKRES_SIZE_POPUP_CORNER_RADIUS
 } nk_resource_t;
 
 typedef void (*nk_void_callback_t)(void);
 typedef bool (*nk_bool_callback_t)(void);
 
 struct nk_view_t;
+struct nk_menu_t;
 
 typedef struct
 {
@@ -121,7 +130,7 @@ typedef enum {
 typedef struct nk_view_t
 {
     size_t type;
-    const char *id;
+    uint32_t id;
 
     nk_resource_t background_resource;
     float corner_radius;
@@ -155,13 +164,25 @@ typedef struct
     nk_text_variant_t variant;
 } nk_text_info_t;
 
+typedef enum
+{
+    NK_BUTTON_PRIMARY,
+    NK_BUTTON_SECONDARY
+} nk_button_type;
+
 typedef struct
 {
     nk_view_t view;
 
     const char *text;
     nk_text_info_t text_info;
+
+    const char *secondary_text;
+    nk_text_info_t secondary_text_info;
+
     const char *tooltip;
+
+    nk_button_type button_type;
 
     nk_void_callback_t press_callback;
 } nk_button_t;
@@ -178,19 +199,67 @@ typedef struct
 {
     nk_view_t view;
 
+    bool is_open;
+    bool is_initial_press;
+    struct nk_menu_t *open_menu;
+} nk_menubar_t;
+
+typedef struct
+{
+    nk_button_t button;
+
+    const char *title;
+    const char *shortcut;
+} nk_menu_entry_t;
+
+typedef struct nk_menu_t
+{
+    nk_view_t view;
+    nk_view_t popup;
+
     const char *heading;
-
-    const char **entries;
+    nk_menu_entry_t *entries;
     size_t entries_count;
-
+    nk_menubar_t *parent_menubar;
 } nk_menu_t;
+
+typedef struct
+{
+    nk_menu_t *menus;
+    size_t menus_count;
+} nk_menubar_create_info_t;
+
+typedef struct
+{
+    const char *app_title;
+    nk_menubar_create_info_t *menubar_create_info;
+} nk_workbench_create_info_t;
+
+typedef struct
+{
+    nk_view_t view;
+
+    nk_view_t titlebar;
+    nk_view_t horizontal;
+    nk_view_t statusbar;
+
+    nk_view_t left_toolbar;
+    nk_view_t main_content;
+    nk_view_t right_toolbar;
+
+    nk_label_t brand_label;
+    nk_menubar_t menubar;
+
+} nk_workbench_t;
 
 typedef enum
 {
     NK_VIEW,
     NK_LABEL,
     NK_BUTTON,
-    NK_MENU
+    NK_MENU,
+    NK_MENUBAR,
+    NK_WORKBENCH
 } nk_type_t;
 
 /***************************************************************
@@ -207,6 +276,13 @@ void nk_view_remove(nk_view_t *child);
 void nk_view_insert_after(nk_view_t *sibling, nk_view_t *child);
 void nk_view_insert_before(nk_view_t *sibling, nk_view_t *child);
 
+void nk_workbench_init(nk_workbench_t *workbench, nk_workbench_create_info_t *create_info);
+
+void nk_menubar_init(nk_menubar_t *menubar, nk_menubar_create_info_t *create_info);
+
+void nk_menu_init(nk_menu_t *menu, nk_menubar_t *menubar);
+
+void nk_button_init(nk_button_t *button);
 
 #ifdef NANOKIT_MAIN
 

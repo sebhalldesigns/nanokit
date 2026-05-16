@@ -21,7 +21,7 @@
 #include <resource/resource.h>
 
 #include <nanokit.h>
-#include <ui/view/view.h>
+#include <ui/ui.h>
 
 
 #include <fontconfig/fontconfig.h>
@@ -32,6 +32,8 @@
 #include <GLFW/glfw3.h>
 
 #include <string.h>
+
+#include <stdlib.h>
 
 /***************************************************************
 ** MARK: CONSTANTS & MACROS
@@ -49,7 +51,7 @@ typedef struct {
     int pointer_x;
     int pointer_y;
     bool pointer_down;
-    view_context_t view_context;
+    ui_context_t view_context;
     nk_view_t *root_view;
 
 } glfw_window_data_t;
@@ -91,6 +93,7 @@ bool backend_init()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
+    glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_WAYLAND);
 
     return true;
 }
@@ -128,7 +131,7 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
         if (font_path) break;
     }
 
-    view_context_create_info_t view_create_info = {
+    ui_context_create_info_t view_create_info = {
         .default_font = font_path,
         .bold_font = font_path
     };
@@ -139,7 +142,7 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
     data->root_view = info->root;
 
 
-    if (!font_path || !view_context_init(&data->view_context, &view_create_info))
+    if (!font_path || !ui_context_init(&data->view_context, &view_create_info))
     {
         fprintf(stderr, "Failed to initialize renderer.\n");
     }
@@ -163,11 +166,13 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
 int backend_run(nk_run_info_t *info, int argc, char **argv)
 {
 
+    glfwWindowHintString(GLFW_WAYLAND_APP_ID, info->application_id);
+
     info->launch_callback();
 
     running = true;
 
-    while (running)
+    while (!glfwWindowShouldClose(single_window))
     {
         glfwWaitEvents();
 
@@ -181,7 +186,7 @@ int backend_run(nk_run_info_t *info, int argc, char **argv)
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        view_context_render_info_t render_info = {
+        ui_context_render_info_t render_info = {
             .width = (float)data->width,
             .height = (float)data->height,
             .offset_y = 0.0f,
@@ -192,10 +197,9 @@ int backend_run(nk_run_info_t *info, int argc, char **argv)
             .mouse_down = data->pointer_down
         };
 
-        view_context_render(&data->view_context, data->root_view, &render_info);
+        ui_context_render(&data->view_context, data->root_view, &render_info);
 
         glfwSwapBuffers(single_window);
-
 
     }
 

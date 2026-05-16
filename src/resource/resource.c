@@ -130,6 +130,13 @@ void resource_load_default(void)
         }
     });
 
+    resource_set_dynamic_color(NKRES_COLOR_TEXT_SECONDARY, (nk_dynamic_color_t){
+        .colors = {
+            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 0.0f, 0.0f, 0.0f, 0.5f },
+            [NK_RESOURCE_APPEARANCE_DARK] = (nk_color_t){ 1.0f, 1.0f, 1.0f, 0.5f }
+        }
+    });
+
     resource_set_dynamic_color(NKRES_COLOR_BACKGROUND_PRIMARY, (nk_dynamic_color_t){
         .colors = {
             [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 1.0f, 1.0f, 1.0f, 1.0f },
@@ -151,7 +158,30 @@ void resource_load_default(void)
         }
     });
 
-    resource_set_float(1, 8.0f); /* Example: border radius */
+    resource_set_dynamic_color(NKRES_COLOR_BACKGROUND_POPUP, (nk_dynamic_color_t){
+        .colors = {
+            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 0.9f, 0.9f, 0.9f, 1.0f },
+            [NK_RESOURCE_APPEARANCE_DARK] = (nk_color_t){ 0.21f, 0.21f, 0.22f, 1.0f }
+        }
+    });
+
+    resource_set_dynamic_color(NKRES_COLOR_BACKGROUND_BUTTON_SECONDARY, (nk_dynamic_color_t){
+        .colors = {
+            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 0.9f, 0.9f, 0.9f, 1.0f },
+            [NK_RESOURCE_APPEARANCE_DARK] = (nk_color_t){ 0.3f, 0.3f, 0.3f, 0.4f }
+        }
+    });
+
+    resource_set_dynamic_color(NKRES_COLOR_RED, (nk_dynamic_color_t){
+        .colors = {
+            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 1.0f, 0.1f, 0.1f, 1.0f },
+            [NK_RESOURCE_APPEARANCE_DARK] = (nk_color_t){ 0.9f, 0.1f, 0.1f, 1.0f }
+        }
+    });
+
+    resource_set_float(NKRES_SIZE_TEXT_PRIMARY, 12.0f);
+    resource_set_float(NKRES_SIZE_BUTTON_CORNER_RADIUS, 3.0f);
+    resource_set_float(NKRES_SIZE_POPUP_CORNER_RADIUS, 4.0f);
 }
 
 

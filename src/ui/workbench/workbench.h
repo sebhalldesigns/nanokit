@@ -2,17 +2,17 @@
 **
 ** Nanokit Header File
 **
-** File         :  view.h
-** Module       :  ui/view
+** File         :  workbench.h
+** Module       :  ui/workbench
 ** Author       :  SH
-** Created      :  2026-05-09 (YYYY-MM-DD)
+** Created      :  2026-05-16 (YYYY-MM-DD)
 ** License      :  MIT
-** Description  :  Nanokit View Interface Definition
+** Description  :  Nanokit Workbench Interface Definition
 **
 ***************************************************************/
 
-#ifndef VIEW_H
-#define VIEW_H
+#ifndef WORKBENCH_H
+#define WORKBENCH_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,11 +36,10 @@ extern "C" {
 ** MARK: FUNCTION DEFS
 ***************************************************************/
 
-void view_render(nk_view_t *view);
-void view_render_children(nk_view_t *view);
+void workbench_render(nk_view_t *view);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* VIEW_H */
+#endif /* WORKBENCH_H */

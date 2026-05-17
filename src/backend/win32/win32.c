@@ -18,7 +18,7 @@
 #include <nanokit.h>
 #include <backend/backend.h>
 #include <resource/resource.h>
-#include <ui/view/view.h>
+#include <ui/ui.h>
 
 #include <string.h>
 #include <wchar.h>
@@ -77,7 +77,7 @@ typedef struct {
     int pointer_x;
     int pointer_y;
     bool pointer_down;
-    view_context_t view_context;
+    ui_context_t view_context;
     nk_view_t *root_view;
     bool dark_mode;
 } win32_window_data_t;
@@ -340,12 +340,12 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
 
     SetWindowLongPtr(win32_window, GWLP_USERDATA, (LONG_PTR)data);
 
-    view_context_create_info_t view_create_info = {
+    ui_context_create_info_t view_create_info = {
         .default_font = "C:/Windows/Fonts/segoeui.ttf",
         .bold_font = "C:/Windows/Fonts/seguisb.ttf"
     };
 
-    if (!view_context_init(&data->view_context, &view_create_info))
+    if (!ui_context_init(&data->view_context, &view_create_info))
     {
         fprintf(stderr, "Failed to initialize renderer.\n");
     }
@@ -537,7 +537,7 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
 
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-                view_context_render_info_t render_info = {
+                ui_context_render_info_t render_info = {
                     .width = (float)data->width,
                     .height = (float)data->height,
                     .offset_y = (float)data->offset_y,
@@ -548,7 +548,7 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
                     .mouse_down = data->pointer_down
                 };
 
-                view_context_render(&data->view_context, data->root_view, &render_info);
+                ui_context_render(&data->view_context, data->root_view, &render_info);
 
                 SwapBuffers(data->gldc);
 

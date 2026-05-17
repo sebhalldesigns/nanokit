@@ -15,6 +15,7 @@
 ** MARK: INCLUDES
 ***************************************************************/
 
+#include "ui/dock/dock.h"
 #include <nanokit.h>
 
 #include <stdio.h>
@@ -56,8 +57,7 @@ void nk_workbench_init(nk_workbench_t *workbench, nk_workbench_create_info_t *cr
     #endif
     workbench->titlebar.gap = 5;
 
-    workbench->horizontal.direction = NK_DIRECTION_HORIZONTAL;
-    workbench->horizontal.background_resource = NKRES_COLOR_BACKGROUND_PRIMARY;
+    nk_dock_init(&workbench->dock);
 
     workbench->statusbar.direction = NK_DIRECTION_HORIZONTAL;
     workbench->statusbar.height.type = NK_SIZING_FIXED;
@@ -65,22 +65,8 @@ void nk_workbench_init(nk_workbench_t *workbench, nk_workbench_create_info_t *cr
     workbench->statusbar.background_resource = NKRES_COLOR_BACKGROUND_TERTIARY;
 
     nk_view_add_child(&workbench->view, &workbench->titlebar);
-    nk_view_add_child(&workbench->view, &workbench->horizontal);
+    nk_view_add_child(&workbench->view, &workbench->dock.view);
     nk_view_add_child(&workbench->view, &workbench->statusbar);
-
-    workbench->left_toolbar.width.type = NK_SIZING_FIXED;
-    workbench->left_toolbar.width.value = 250;
-    workbench->left_toolbar.background_resource = NKRES_COLOR_BACKGROUND_SECONDARY;
-
-    workbench->main_content.background_resource = NKRES_COLOR_BACKGROUND_PRIMARY;
-
-    workbench->right_toolbar.width.type = NK_SIZING_FIXED;
-    workbench->right_toolbar.width.value = 250;
-    workbench->horizontal.background_resource = NKRES_COLOR_BACKGROUND_SECONDARY;
-
-    nk_view_add_child(&workbench->horizontal, &workbench->left_toolbar);
-    nk_view_add_child(&workbench->horizontal, &workbench->main_content);
-    nk_view_add_child(&workbench->horizontal, &workbench->right_toolbar);
 
     workbench->brand_label.view.type = NK_LABEL;
     workbench->brand_label.text = create_info->app_title;

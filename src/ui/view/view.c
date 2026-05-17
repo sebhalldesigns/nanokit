@@ -15,6 +15,8 @@
 ** MARK: INCLUDES
 ***************************************************************/
 
+#include "ui/dock/dock_node.h"
+#include "ui/splitter/splitter.h"
 #include <nanokit.h>
 
 #include <resource/resource.h>
@@ -128,30 +130,35 @@ void view_render(nk_view_t *view)
 {
     switch (view->type)
     {
-
         case NK_LABEL:
         {
             label_render(view);
-        }
-        break;
+        } break;
 
         case NK_BUTTON:
         {
             button_render(view);
-        }
-        break;
+        } break;
 
         case NK_MENU:
         {
             menu_render(view);
-        }
-        break;
+        } break;
 
         case NK_MENUBAR:
         {
             menubar_render(view);
-        }
-        break;
+        } break;
+
+        case NK_SPLITTER:
+        {
+            splitter_render(view);
+        } break;
+
+        case NK_DOCK_NODE:
+        {
+            dock_node_render(view);
+        } break;
 
         default:
         {

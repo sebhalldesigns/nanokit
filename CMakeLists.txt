@@ -58,8 +58,12 @@ add_library(nanokit STATIC
     src/ui/view/view.c
     src/ui/label/label.c
     src/ui/button/button.c
-    src/ui/menu/menu.c
     src/ui/menubar/menubar.c
+    src/ui/menubar/menu.c
+    src/ui/splitter/splitter.c
+    src/ui/dock/dock.c
+    src/ui/dock/dock_node.c
+    src/ui/dock/dock_group.c
     src/ui/workbench/workbench.c
 
     ${BACKEND_SRC}

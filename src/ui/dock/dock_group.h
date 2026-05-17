@@ -2,17 +2,17 @@
 **
 ** Nanokit Header File
 **
-** File         :  menu.h
-** Module       :  ui/menu
+** File         :  dock_group.h
+** Module       :  ui/dock
 ** Author       :  SH
-** Created      :  2026-05-10 (YYYY-MM-DD)
+** Created      :  2026-05-17 (YYYY-MM-DD)
 ** License      :  MIT
-** Description  :  Nanokit Menu Interface Definition
+** Description  :  Nanokit Dock Group Interface Definition
 **
 ***************************************************************/
 
-#ifndef MENU_H
-#define MENU_H
+#ifndef DOCK_GROUP_H
+#define DOCK_GROUP_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,10 +36,10 @@ extern "C" {
 ** MARK: FUNCTION DEFS
 ***************************************************************/
 
-void menu_render(nk_view_t *view);
+void dock_group_render(nk_view_t *view);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* MENU_H */
+#endif /* DOCK_GROUP_H */

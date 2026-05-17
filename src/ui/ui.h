@@ -32,8 +32,13 @@ extern "C" {
 #include <ui/button/button.h>
 #include <ui/label/label.h>
 
-#include <ui/menu/menu.h>
 #include <ui/menubar/menubar.h>
+#include <ui/menubar/menu.h>
+
+#include <ui/splitter/splitter.h>
+#include <ui/dock/dock.h>
+#include <ui/dock/dock_node.h>
+#include <ui/dock/dock_group.h>
 
 /***************************************************************
 ** MARK: CONSTANTS & MACROS
@@ -76,6 +81,8 @@ bool ui_pointer_press(void);
 
 /* true if pointer release this frame */
 bool ui_pointer_release(void);
+
+nk_point_t ui_pointer_location(void);
 
 Clay_Color nk_to_clay_color(nk_color_t c);
 

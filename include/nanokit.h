@@ -50,6 +50,8 @@ extern "C" {
 #define DEBUG !NDEBUG
 #endif
 
+#define NK_DOCK_NODES_PER_SIDE_AREA (16U)
+#define NK_DOCK_NODES_PER_MAIN_AREA (32U)
 
 /***************************************************************
 ** MARK: TYPEDEFS
@@ -65,10 +67,13 @@ typedef enum
     NKRES_COLOR_BACKGROUND_TERTIARY,
     NKRES_COLOR_BACKGROUND_POPUP,
     NKRES_COLOR_BACKGROUND_BUTTON_SECONDARY,
+    NKRES_COLOR_BACKGROUND_SPLITTER_ACTIVE,
+    NKRES_COLOR_BACKGROUND_SPLITTER_INACTIVE,
     NKRES_COLOR_RED,
     NKRES_SIZE_TEXT_PRIMARY,
     NKRES_SIZE_BUTTON_CORNER_RADIUS,
-    NKRES_SIZE_POPUP_CORNER_RADIUS
+    NKRES_SIZE_POPUP_CORNER_RADIUS,
+    NKRES_SIZE_SPLITTER_THICKNESS
 } nk_resource_t;
 
 typedef void (*nk_void_callback_t)(void);
@@ -76,6 +81,7 @@ typedef bool (*nk_bool_callback_t)(void);
 
 struct nk_view_t;
 struct nk_menu_t;
+struct nk_dock_group_t;
 
 typedef struct
 {
@@ -102,6 +108,11 @@ typedef struct {
 typedef struct {
     float left, top, right, bottom;
 } nk_thickness_t;
+
+typedef struct
+{
+    float x, y;
+} nk_point_t;
 
 typedef enum {
     NK_DIRECTION_VERTICAL,
@@ -231,6 +242,104 @@ typedef struct
 
 typedef struct
 {
+    nk_view_t view;
+
+    nk_direction_t direction;
+    float *target;
+    bool reversed;
+
+    bool sizing;
+    nk_point_t start_point;
+    float start_target_size;
+
+    bool proportional;
+    float *reference;
+} nk_splitter_t;
+
+typedef enum
+{
+    DOCK_TAB_MAIN_AREA,
+    DOCK_TAB_LEFT_AREA,
+    DOCK_TAB_RIGHT_AREA,
+    DOCK_TAB_BOTTOM_AREA
+} nk_dock_tab_location_t;
+
+typedef struct
+{
+    nk_view_t view;
+
+    const char* title;
+    bool is_tool;
+
+    struct nk_dock_group_t *dock_group;
+} nk_dock_tab_t;
+
+typedef struct
+{
+    nk_view_t view;
+
+    nk_view_t tab_bar;
+    nk_view_t content;
+    /* Children of the content view are the tabs in the container.
+     * Prevents arbitrary limits on number of tabs.
+     */
+
+    nk_dock_tab_t *active_tab;
+} nk_dock_group_t;
+
+typedef enum
+{
+    NK_DOCK_NODE_TYPE_LEAF, /* a tab group */
+    NK_DOCK_NODE_TYPE_SPLIT /* two child nodes + a splitter */
+} nk_dock_node_type_t;
+
+typedef struct nk_dock_node_t
+{
+    nk_view_t view;
+    nk_dock_node_type_t node_type;
+
+    union
+    {
+        struct
+        {
+            struct nk_dock_node_t *child_a;
+            struct nk_dock_node_t *child_b;
+            nk_splitter_t          splitter;
+            float axis_reference;
+            nk_direction_t direction;
+        } split;
+
+        nk_dock_group_t        group;
+    } content;
+
+    bool active;
+} nk_dock_node_t;
+
+typedef struct
+{
+    nk_view_t view;
+
+    nk_view_t left_area;
+    nk_splitter_t left_splitter;
+    nk_dock_node_t left_nodes[NK_DOCK_NODES_PER_SIDE_AREA];
+    size_t left_nodes_count;
+
+    nk_view_t central_area;
+
+    nk_splitter_t right_splitter;
+    nk_view_t right_area;
+    nk_dock_node_t right_nodes[NK_DOCK_NODES_PER_SIDE_AREA];
+
+    nk_splitter_t bottom_splitter;
+    nk_view_t bottom_area;
+    nk_dock_node_t bottom_nodes[NK_DOCK_NODES_PER_SIDE_AREA];
+
+    nk_view_t main_area;
+    nk_dock_node_t main_nodes[NK_DOCK_NODES_PER_MAIN_AREA];
+} nk_dock_t;
+
+typedef struct
+{
     const char *app_title;
     nk_menubar_create_info_t *menubar_create_info;
 } nk_workbench_create_info_t;
@@ -240,12 +349,8 @@ typedef struct
     nk_view_t view;
 
     nk_view_t titlebar;
-    nk_view_t horizontal;
+    nk_dock_t dock;
     nk_view_t statusbar;
-
-    nk_view_t left_toolbar;
-    nk_view_t main_content;
-    nk_view_t right_toolbar;
 
     nk_label_t brand_label;
     nk_menubar_t menubar;
@@ -259,6 +364,9 @@ typedef enum
     NK_BUTTON,
     NK_MENU,
     NK_MENUBAR,
+    NK_SPLITTER,
+    NK_DOCK_NODE,
+    NK_DOCK,
     NK_WORKBENCH
 } nk_type_t;
 
@@ -283,6 +391,13 @@ void nk_menubar_init(nk_menubar_t *menubar, nk_menubar_create_info_t *create_inf
 void nk_menu_init(nk_menu_t *menu, nk_menubar_t *menubar);
 
 void nk_button_init(nk_button_t *button);
+
+void nk_splitter_init(nk_splitter_t *splitter, float *target, nk_direction_t direction, bool reversed);
+void nk_splitter_init_proportional(nk_splitter_t *splitter, float *target,
+    nk_direction_t direction, bool reversed, float *reference);
+
+void nk_dock_init(nk_dock_t *dock);
+void nk_dock_add_tab(nk_dock_t *dock, nk_dock_tab_t *tab, nk_dock_tab_location_t location);
 
 #ifdef NANOKIT_MAIN
 

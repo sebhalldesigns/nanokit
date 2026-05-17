@@ -52,6 +52,7 @@ static NVGcontext* g_vg = NULL;
 
 static bool pointer_down_this_frame = false;
 static bool pointer_down_last_frame = false;
+static nk_point_t pointer_location;
 
 /***************************************************************
 ** MARK: STATIC FUNCTION DEFS
@@ -104,7 +105,9 @@ bool ui_context_init(ui_context_t *context, ui_context_create_info_t *create_inf
     Clay_Initialize(arena, (Clay_Dimensions){0, 0}, (Clay_ErrorHandler){0});
     Clay_SetMeasureTextFunction(measure_text, NULL);
 
-    /*Clay_SetDebugModeEnabled(true);*/
+    #if 0
+    Clay_SetDebugModeEnabled(true);
+    #endif
 
     *context = (ui_context_t)vg;
 
@@ -116,6 +119,8 @@ void ui_context_render(ui_context_t *context, nk_view_t *root, ui_context_render
     NVGcontext* vg = (NVGcontext*)(*context);
 
     pointer_down_this_frame = render_info->mouse_down;
+    pointer_location.x = render_info->pointer_x;
+    pointer_location.y = render_info->pointer_y;
 
     Clay_SetLayoutDimensions((Clay_Dimensions){render_info->width, render_info->height});
     Clay_SetPointerState((Clay_Vector2){.x = render_info->pointer_x, .y = render_info->pointer_y - render_info->offset_y}, render_info->mouse_down);
@@ -204,6 +209,12 @@ bool ui_pointer_release(void)
 {
     return !pointer_down_this_frame && pointer_down_last_frame;
 }
+
+nk_point_t ui_pointer_location(void)
+{
+    return pointer_location;
+}
+
 /***************************************************************
 ** MARK: STATIC FUNCTIONS
 ***************************************************************/

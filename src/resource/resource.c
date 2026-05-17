@@ -172,6 +172,21 @@ void resource_load_default(void)
         }
     });
 
+    resource_set_dynamic_color(NKRES_COLOR_BACKGROUND_SPLITTER_ACTIVE, (nk_dynamic_color_t){
+        .colors = {
+            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 0.9f, 0.9f, 0.9f, 1.0f },
+            [NK_RESOURCE_APPEARANCE_DARK] = (nk_color_t){ 0.15f, 0.15f, 0.18f, 1.0f }
+        }
+    });
+
+    resource_set_dynamic_color(NKRES_COLOR_BACKGROUND_SPLITTER_INACTIVE, (nk_dynamic_color_t){
+        .colors = {
+            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 0.0f, 0.0f, 0.0f, 0.0f },
+            [NK_RESOURCE_APPEARANCE_DARK] = (nk_color_t){ 0.0f, 0.0f, 0.0f, 0.0f }
+        }
+    });
+
+
     resource_set_dynamic_color(NKRES_COLOR_RED, (nk_dynamic_color_t){
         .colors = {
             [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 1.0f, 0.1f, 0.1f, 1.0f },
@@ -182,6 +197,7 @@ void resource_load_default(void)
     resource_set_float(NKRES_SIZE_TEXT_PRIMARY, 12.0f);
     resource_set_float(NKRES_SIZE_BUTTON_CORNER_RADIUS, 3.0f);
     resource_set_float(NKRES_SIZE_POPUP_CORNER_RADIUS, 4.0f);
+    resource_set_float(NKRES_SIZE_SPLITTER_THICKNESS, 2.0f);
 }
 
 

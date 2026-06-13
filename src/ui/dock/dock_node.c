@@ -50,7 +50,6 @@ void dock_node_init_group(nk_dock_node_t *node)
 {
     memset(node, 0, sizeof(nk_dock_node_t));
     node->view.type = NK_DOCK_NODE;
-    node->content.group.view.background_resource = NKRES_COLOR_RED;
     nk_view_add_child(&node->view, &node->content.group.view);
     node->active = true;
     node->node_type = NK_DOCK_NODE_TYPE_LEAF;

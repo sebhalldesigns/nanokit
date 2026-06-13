@@ -40,7 +40,7 @@ bool backend_init(void);
 
 int backend_run(nk_run_info_t *info, int argc, char **argv);
 
-
+nk_window_t *backend_get_active_window(void);
 
 #ifdef __cplusplus
 }

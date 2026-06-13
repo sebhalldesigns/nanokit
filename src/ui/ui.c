@@ -22,6 +22,7 @@
 #include <ui/ui.h>
 
 #include <resource/resource.h>
+#include <backend/backend.h>
 
 #include <glad.h>
 
@@ -116,6 +117,9 @@ bool ui_context_init(ui_context_t *context, ui_context_create_info_t *create_inf
 
 void ui_context_render(ui_context_t *context, nk_view_t *root, ui_context_render_info_t *render_info)
 {
+
+    nk_window_set_cursor(backend_get_active_window(), NK_CURSOR_ARROW);
+
     NVGcontext* vg = (NVGcontext*)(*context);
 
     pointer_down_this_frame = render_info->mouse_down;

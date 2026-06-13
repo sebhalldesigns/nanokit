@@ -15,8 +15,11 @@
 ** MARK: INCLUDES
 ***************************************************************/
 
+
 #include "ui/view/view.h"
 #include <nanokit.h>
+
+#include <backend/backend.h>
 
 #include <stdio.h>
 #include <ui/ui.h>
@@ -156,6 +159,18 @@ void splitter_render(nk_view_t *view)
         .backgroundColor = bg,
         .cornerRadius = CLAY_CORNER_RADIUS(view->corner_radius)
     });
+
+    if (hovered || splitter->sizing)
+    {
+        if (splitter->direction == NK_DIRECTION_HORIZONTAL)
+        {
+            nk_window_set_cursor(backend_get_active_window(), NK_CURSOR_RESIZE_EW);
+        }
+        else
+        {
+            nk_window_set_cursor(backend_get_active_window(), NK_CURSOR_RESIZE_NS);
+        }
+    }
 }
 
 /***************************************************************

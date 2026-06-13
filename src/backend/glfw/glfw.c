@@ -64,6 +64,12 @@ typedef struct {
 static bool running = false;
 static GLFWwindow *single_window = NULL;
 
+static GLFWcursor *arrow_cusor = NULL;
+static GLFWcursor *ibeam_cusor = NULL;
+static GLFWcursor *hand_cusor = NULL;
+static GLFWcursor *resize_ns_cusor = NULL;
+static GLFWcursor *resize_ew_cusor = NULL;
+
 /***************************************************************
 ** MARK: STATIC FUNCTION DEFS
 ***************************************************************/
@@ -86,6 +92,12 @@ bool backend_init()
     {
         return false;
     }
+
+    arrow_cusor = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
+    ibeam_cusor = glfwCreateStandardCursor(GLFW_IBEAM_CURSOR);
+    hand_cusor = glfwCreateStandardCursor(GLFW_HAND_CURSOR);
+    resize_ns_cusor = glfwCreateStandardCursor(GLFW_VRESIZE_CURSOR);
+    resize_ew_cusor = glfwCreateStandardCursor(GLFW_HRESIZE_CURSOR);
 
     glfwSetErrorCallback(error_callback);
 
@@ -203,9 +215,56 @@ int backend_run(nk_run_info_t *info, int argc, char **argv)
 
     }
 
+    glfwDestroyCursor(arrow_cusor);
+    glfwDestroyCursor(ibeam_cusor);
+    glfwDestroyCursor(hand_cusor);
+    glfwDestroyCursor(resize_ns_cusor);
+    glfwDestroyCursor(resize_ew_cusor);
+
+    glfwTerminate();
+
     return 0;
 }
 
+void nk_window_set_cursor(nk_window_t *window, nk_cursor_t cursor)
+{
+    GLFWcursor *glfw_cursor;
+
+    switch (cursor)
+    {
+        case NK_CURSOR_IBEAM:
+        {
+            glfw_cursor = ibeam_cusor;
+        } break;
+
+        case NK_CURSOR_HAND:
+        {
+            glfw_cursor = hand_cusor;
+        } break;
+
+        case NK_CURSOR_RESIZE_NS:
+        {
+            glfw_cursor = resize_ns_cusor;
+        } break;
+
+        case NK_CURSOR_RESIZE_EW:
+        {
+            glfw_cursor = resize_ew_cusor;
+        } break;
+
+        default:
+        {
+            glfw_cursor = arrow_cusor;
+        } break;
+    }
+
+    glfwSetCursor((GLFWwindow*)window, glfw_cursor);
+}
+
+nk_window_t *backend_get_active_window(void)
+{
+    return (nk_window_t*)single_window;
+}
 
 /***************************************************************
 ** MARK: STATIC FUNCTIONS

@@ -49,18 +49,16 @@
 void nk_dock_init(nk_dock_t *dock)
 {
     dock->view.direction = NK_DIRECTION_HORIZONTAL;
-    dock->view.background_resource = NKRES_COLOR_BACKGROUND_PRIMARY;
+    dock->view.background_resource = NKRES_COLOR_BACKGROUND_SECONDARY;
 
     dock->left_area.width.type = NK_SIZING_FIXED;
     dock->left_area.width.value = 250;
-    dock->left_area.background_resource = NKRES_COLOR_BACKGROUND_SECONDARY;
 
     nk_splitter_init(&dock->left_splitter, &dock->left_area.width.value, NK_DIRECTION_HORIZONTAL, false);
     nk_splitter_init(&dock->right_splitter, &dock->right_area.width.value, NK_DIRECTION_HORIZONTAL, true);
 
     dock->right_area.width.type = NK_SIZING_FIXED;
     dock->right_area.width.value = 250;
-    dock->right_area.background_resource = NKRES_COLOR_BACKGROUND_SECONDARY;
 
     nk_view_add_child(&dock->view, &dock->left_area);
     nk_view_add_child(&dock->view, &dock->left_splitter.view);
@@ -70,11 +68,8 @@ void nk_dock_init(nk_dock_t *dock)
 
     dock->central_area.direction = NK_DIRECTION_VERTICAL;
 
-    dock->main_area.background_resource = NKRES_COLOR_BACKGROUND_PRIMARY;
-
     nk_splitter_init(&dock->bottom_splitter, &dock->bottom_area.height.value, NK_DIRECTION_VERTICAL, true);
 
-    dock->bottom_area.background_resource = NKRES_COLOR_BACKGROUND_SECONDARY;
     dock->bottom_area.height.type = NK_SIZING_FIXED;
     dock->bottom_area.height.value = 250;
 

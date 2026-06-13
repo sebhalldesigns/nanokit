@@ -181,8 +181,8 @@ void resource_load_default(void)
 
     resource_set_dynamic_color(NKRES_COLOR_BACKGROUND_SPLITTER_INACTIVE, (nk_dynamic_color_t){
         .colors = {
-            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 0.0f, 0.0f, 0.0f, 0.0f },
-            [NK_RESOURCE_APPEARANCE_DARK] = (nk_color_t){ 0.0f, 0.0f, 0.0f, 0.0f }
+            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 0.9f, 0.9f, 0.9f, 0.5f },
+            [NK_RESOURCE_APPEARANCE_DARK] = (nk_color_t){ 0.15f, 0.15f, 0.18f, 0.5f }
         }
     });
 

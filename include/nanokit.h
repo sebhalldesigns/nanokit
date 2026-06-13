@@ -26,6 +26,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stdio.h>
 #include <assert.h>
+#include <stddef.h>
 
 #ifdef _WIN32
 #ifndef UNICODE
@@ -75,6 +76,15 @@ typedef enum
     NKRES_SIZE_POPUP_CORNER_RADIUS,
     NKRES_SIZE_SPLITTER_THICKNESS
 } nk_resource_t;
+
+typedef enum
+{
+    NK_CURSOR_ARROW,
+    NK_CURSOR_IBEAM,
+    NK_CURSOR_HAND,
+    NK_CURSOR_RESIZE_NS,
+    NK_CURSOR_RESIZE_EW
+} nk_cursor_t;
 
 typedef void (*nk_void_callback_t)(void);
 typedef bool (*nk_bool_callback_t)(void);
@@ -378,6 +388,7 @@ typedef enum
 int nk_run(nk_run_info_t *info, int argc, char **argv);
 
 bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window);
+void nk_window_set_cursor(nk_window_t *window, nk_cursor_t cursor);
 
 void nk_view_add_child(nk_view_t *parent, nk_view_t *child);
 void nk_view_remove(nk_view_t *child);

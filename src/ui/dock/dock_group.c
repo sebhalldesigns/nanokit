@@ -672,6 +672,47 @@ void dock_group_render(nk_view_t *view)
             .backgroundColor = overlay,
         }) {}
     }
+
+    /* Drag ghost — a floating copy of the tab that tracks the cursor.
+       Rendered only from the source group so it appears exactly once. */
+    if (drag.active && drag.tab && drag.source_group == group)
+    {
+        nk_point_t ptr = ui_pointer_location();
+
+        Clay_String ghost_title = {
+            .chars  = drag.tab->title,
+            .length = (int32_t)strlen(drag.tab->title)
+        };
+
+        Clay_Color ghost_bg = nk_to_clay_color(
+            resource_get_dynamic_color(NKRES_COLOR_BACKGROUND_BUTTON_SECONDARY));
+        ghost_bg.a = 230;
+
+        CLAY({
+            .floating = {
+                .attachTo = CLAY_ATTACH_TO_ROOT,
+                .offset   = { .x = ptr.x + 10.0f, .y = ptr.y + 10.0f },
+                .zIndex   = 20,
+                .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
+            },
+            .layout = {
+                .sizing = {
+                    .width  = CLAY_SIZING_FIT(0),
+                    .height = CLAY_SIZING_FIT(0),
+                },
+                .childAlignment = { .y = CLAY_ALIGN_Y_CENTER },
+                .padding  = { .left = 8, .right = 8, .top = 6, .bottom = 6 },
+            },
+            .backgroundColor = ghost_bg,
+            .cornerRadius    = CLAY_CORNER_RADIUS(3),
+        })
+        {
+            CLAY_TEXT(ghost_title, CLAY_TEXT_CONFIG({
+                .fontSize  = (uint16_t)tab_font_size,
+                .textColor = nk_to_clay_color(resource_get_dynamic_color(NKRES_COLOR_TEXT_PRIMARY)),
+            }));
+        }
+    }
 }
 
 /***************************************************************

@@ -16,7 +16,7 @@
 ***************************************************************/
 
 #include <nanokit.h>
-#include <ui/view/view.h>
+#include <ui/ui.h>
 
 #include <resource/resource.h>
 
@@ -50,7 +50,7 @@
     int pointer_x;
     int pointer_y;
     bool pointer_down;
-    view_context_t view_context;
+    ui_context_t view_context;
     nk_view_t *root_view;
     bool dark_mode;
 }
@@ -141,8 +141,8 @@ int backend_run(nk_run_info_t *info, int argc, char **argv)
     @autoreleasepool
     {
         NSApplication *app = [NSApplication sharedApplication];
-        app_delegate_t *delegate = [app_delegate_t new];
-        app.delegate = delegate;
+        app_delegate = [app_delegate_t new];
+        app.delegate = app_delegate;
         [app run];
     }
 
@@ -158,7 +158,6 @@ int backend_run(nk_run_info_t *info, int argc, char **argv)
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification
 {
-    app_delegate = self;
     printf("finished launching\n");
     run_info->launch_callback();
     printf("launch callback complete!\n");
@@ -211,10 +210,10 @@ int backend_run(nk_run_info_t *info, int argc, char **argv)
 
 - (void)mouseMoved:(NSEvent *)event {
     NSPoint location = [self convertPoint:[event locationInWindow] fromView:nil];
-    // app_cursor_moved(location.x, self.bounds.size.height - location.y);
     pointer_x = location.x;
     pointer_y = self.bounds.size.height - location.y;
     [self.layer setNeedsDisplay];
+    printf("MOUSE MOVED\n");
 }
 
 - (void)mouseEntered:(NSEvent *)event {
@@ -229,15 +228,21 @@ int backend_run(nk_run_info_t *info, int argc, char **argv)
 }
 
 - (void)mouseDown:(NSEvent *)event {
+    pointer_down = true;
+    printf("POINTER UP\n");
     //app_button_changed(MOUSE_LEFT_BUTTON, true);
 }
 
 - (void)mouseUp:(NSEvent *)event {
+    pointer_down = false;
+    printf("POINTER DOWN\n");
     //app_button_changed(MOUSE_LEFT_BUTTON, false);
 }
 
 - (void)mouseDragged:(NSEvent *)event {
     NSPoint location = [self convertPoint:[event locationInWindow] fromView:nil];
+    pointer_x = location.x;
+    pointer_y = self.bounds.size.height - location.y;
     // app_cursor_moved(location.x, self.bounds.size.height - location.y);
 }
 
@@ -311,12 +316,12 @@ int backend_run(nk_run_info_t *info, int argc, char **argv)
     /* make current so glad/GL calls work */
     CGLSetCurrentContext(ctx);
     
-    view_context_create_info_t view_create_info = {
+    ui_context_create_info_t view_create_info = {
         .default_font = "/System/Library/Fonts/SFNSRounded.ttf",
         .bold_font    = "/System/Library/Fonts/SFNSRounded.ttf",
     };
 
-    if (!view_context_init(&self->parent_view->view_context, &view_create_info))
+    if (!ui_context_init(&self->parent_view->view_context, &view_create_info))
     {
         fprintf(stderr, "Failed to initialize renderer.\n");
     }
@@ -358,7 +363,7 @@ int backend_run(nk_run_info_t *info, int argc, char **argv)
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    view_context_render_info_t render_info = {
+    ui_context_render_info_t render_info = {
         .width = (float)parent_view->width,
         .height = (float)parent_view->height,
         .offset_y = (float)parent_view->offset_y,
@@ -369,7 +374,7 @@ int backend_run(nk_run_info_t *info, int argc, char **argv)
         .mouse_down = parent_view->pointer_down
     };
 
-    view_context_render(&parent_view->view_context, parent_view->root_view, &render_info);
+    ui_context_render(&parent_view->view_context, parent_view->root_view, &render_info);
     
 }
 

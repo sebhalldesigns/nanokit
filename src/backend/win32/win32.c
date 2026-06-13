@@ -24,6 +24,7 @@
 #include <wchar.h>
 
 #include <dwmapi.h>
+#include <windef.h>
 #include <winreg.h>
 
 #include <glad/glad.h>
@@ -98,6 +99,15 @@ static wglChoosePixelFormatARB_type *wglChoosePixelFormatARB = NULL;
 static PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT = NULL;
 static PFNWGLGETSWAPINTERVALEXTPROC wglGetSwapIntervalEXT = NULL;
 
+static nk_window_t *active_window = NULL;
+
+static HCURSOR arrow_cusor = NULL;
+static HCURSOR ibeam_cusor = NULL;
+static HCURSOR hand_cusor = NULL;
+static HCURSOR resize_ns_cusor = NULL;
+static HCURSOR resize_ew_cusor = NULL;
+
+
 /***************************************************************
 ** MARK: STATIC FUNCTION DEFS
 ***************************************************************/
@@ -124,6 +134,13 @@ static bool is_dark_mode(void);
 bool backend_init()
 {
     instance_handle = GetModuleHandle(NULL);
+
+    arrow_cusor = LoadCursor(NULL, IDC_ARROW);
+    ibeam_cusor = LoadCursor(NULL, IDC_IBEAM);
+    hand_cusor = LoadCursor(NULL, IDC_HAND);
+    resize_ns_cusor = LoadCursor(NULL, IDC_SIZENS);
+    resize_ew_cusor = LoadCursor(NULL, IDC_SIZEWE);
+
     set_process_dpi_awareness();
 
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
@@ -389,6 +406,48 @@ int backend_run(nk_run_info_t *info, int argc, char **argv)
     return 0;
 }
 
+void nk_window_set_cursor(nk_window_t *window, nk_cursor_t cursor)
+{
+    HCURSOR h_cursor = NULL;
+
+    switch (cursor)
+    {
+        case NK_CURSOR_IBEAM:
+        {
+            h_cursor = ibeam_cusor;
+        } break;
+
+        case NK_CURSOR_HAND:
+        {
+            h_cursor = hand_cusor;
+        } break;
+
+        case NK_CURSOR_RESIZE_NS:
+        {
+            h_cursor = resize_ns_cusor;
+        } break;
+
+        case NK_CURSOR_RESIZE_EW:
+        {
+            h_cursor = resize_ew_cusor;
+        } break;
+
+        default:
+        {
+            h_cursor = arrow_cusor;
+        } break;
+    }
+
+    SetCursor(h_cursor);
+}
+
+
+nk_window_t *backend_get_active_window(void)
+{
+    return (nk_window_t*)active_window;
+}
+
+
 /***************************************************************
 ** MARK: STATIC FUNCTIONS
 ***************************************************************/
@@ -536,6 +595,8 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
                 glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                active_window = (nk_window_t *)window;
 
                 ui_context_render_info_t render_info = {
                     .width = (float)data->width,

@@ -201,6 +201,24 @@ static void maybe_collapse_empty_node(nk_dock_node_t *leaf)
     sibling->view.width        = split->view.width;
     sibling->view.height       = split->view.height;
 
+    /* If the grandparent is itself a split, its child pointers and splitter
+       target still reference the node we are collapsing away. Repoint them at
+       the promoted sibling, otherwise a later collapse reads a dead node and
+       a pane silently disappears. */
+    if (grandparent && grandparent->type == NK_DOCK_NODE)
+    {
+        nk_dock_node_t *gp = (nk_dock_node_t *)grandparent;
+        if (gp->node_type == NK_DOCK_NODE_TYPE_SPLIT)
+        {
+            if (gp->content.split.child_a == split) gp->content.split.child_a = sibling;
+            if (gp->content.split.child_b == split) gp->content.split.child_b = sibling;
+
+            nk_splitter_t *sp = &gp->content.split.splitter;
+            if (sp->target == &split->view.width.value)  sp->target = &sibling->view.width.value;
+            if (sp->target == &split->view.height.value) sp->target = &sibling->view.height.value;
+        }
+    }
+
     split->active = false;
     leaf->active  = false;
 }

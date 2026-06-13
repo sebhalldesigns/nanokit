@@ -74,6 +74,13 @@ static nk_dock_node_t *find_first_leaf(nk_dock_node_t *nodes, size_t count)
 
 void nk_dock_init(nk_dock_t *dock)
 {
+    /* Node pools must start fully inactive — slot reuse keys off `active`, and
+       a garbage flag from a non-zeroed allocation corrupts split allocation. */
+    memset(dock->left_nodes,   0, sizeof(dock->left_nodes));
+    memset(dock->right_nodes,  0, sizeof(dock->right_nodes));
+    memset(dock->bottom_nodes, 0, sizeof(dock->bottom_nodes));
+    memset(dock->main_nodes,   0, sizeof(dock->main_nodes));
+
     dock->view.type = NK_DOCK;
     dock->view.direction = NK_DIRECTION_HORIZONTAL;
     dock->view.background_resource = NKRES_COLOR_BACKGROUND_SECONDARY;

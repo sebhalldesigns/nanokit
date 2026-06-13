@@ -62,11 +62,12 @@ void dock_node_init_split(nk_dock_node_t *node, nk_dock_node_t *child_a,
     nk_dock_node_t *child_b, node_split_direction_t direction)
 {
     /* Preserve position in the view hierarchy so grandparent stays wired */
-    nk_view_t  *saved_parent   = node->view.parent;
-    nk_view_t  *saved_prev     = node->view.prev_sibling;
-    nk_view_t  *saved_next     = node->view.next_sibling;
-    nk_sizing_t saved_width    = node->view.width;
-    nk_sizing_t saved_height   = node->view.height;
+    nk_view_t        *saved_parent = node->view.parent;
+    nk_view_t        *saved_prev   = node->view.prev_sibling;
+    nk_view_t        *saved_next   = node->view.next_sibling;
+    nk_sizing_t       saved_width  = node->view.width;
+    nk_sizing_t       saved_height = node->view.height;
+    struct nk_dock_t *saved_dock   = node->dock;
 
     memset(node, 0, sizeof(nk_dock_node_t));
 
@@ -75,6 +76,7 @@ void dock_node_init_split(nk_dock_node_t *node, nk_dock_node_t *child_a,
     node->view.next_sibling = saved_next;
     node->view.width        = saved_width;
     node->view.height       = saved_height;
+    node->dock              = saved_dock;
 
     node->view.type = NK_DOCK_NODE;
     node->active = true;

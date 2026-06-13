@@ -16,6 +16,8 @@
 ***************************************************************/
 
 #include "ui/dock/dock_node.h"
+#include "ui/dock/dock_group.h"
+#include "ui/dock/dock.h"
 #include "ui/splitter/splitter.h"
 #include <nanokit.h>
 
@@ -158,6 +160,16 @@ void view_render(nk_view_t *view)
         case NK_DOCK_NODE:
         {
             dock_node_render(view);
+        } break;
+
+        case NK_DOCK_GROUP:
+        {
+            dock_group_render(view);
+        } break;
+
+        case NK_DOCK:
+        {
+            dock_render(view);
         } break;
 
         default:

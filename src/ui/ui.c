@@ -214,6 +214,11 @@ bool ui_pointer_release(void)
     return !pointer_down_this_frame && pointer_down_last_frame;
 }
 
+bool ui_pointer_down(void)
+{
+    return pointer_down_this_frame;
+}
+
 nk_point_t ui_pointer_location(void)
 {
     return pointer_location;

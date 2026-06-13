@@ -39,6 +39,8 @@ extern "C" {
 void view_render(nk_view_t *view);
 void view_render_children(nk_view_t *view);
 
+void nk_view_insert_before(nk_view_t *sibling, nk_view_t *child);
+
 #ifdef __cplusplus
 }
 #endif

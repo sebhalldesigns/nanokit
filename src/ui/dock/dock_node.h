@@ -51,7 +51,8 @@ void dock_node_init_split(nk_dock_node_t *node, nk_dock_node_t *child_a,
     nk_dock_node_t *child_b, node_split_direction_t direction);
 
 bool dock_node_split(nk_dock_node_t *existing_node, nk_dock_node_t *node_list,
-    size_t list_size, node_split_direction_t direction, nk_dock_node_t **new_node);
+    size_t list_size, node_split_direction_t direction,
+    nk_dock_node_t **new_node, nk_dock_node_t **copy_node);
 
 void dock_node_render(nk_view_t *view);
 

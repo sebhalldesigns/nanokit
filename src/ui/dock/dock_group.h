@@ -36,6 +36,8 @@ extern "C" {
 ** MARK: FUNCTION DEFS
 ***************************************************************/
 
+void dock_group_init(nk_dock_group_t *group);
+
 void dock_group_render(nk_view_t *view);
 
 #ifdef __cplusplus

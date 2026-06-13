@@ -92,6 +92,8 @@ typedef bool (*nk_bool_callback_t)(void);
 struct nk_view_t;
 struct nk_menu_t;
 struct nk_dock_group_t;
+struct nk_dock_node_t;
+struct nk_dock_t;
 
 typedef struct
 {
@@ -123,6 +125,14 @@ typedef struct
 {
     float x, y;
 } nk_point_t;
+
+typedef struct
+{
+    float x;
+    float y;
+    float width;
+    float height;
+} nk_rect_t;
 
 typedef enum {
     NK_DIRECTION_VERTICAL,
@@ -294,7 +304,9 @@ typedef struct
      * Prevents arbitrary limits on number of tabs.
      */
 
-    nk_dock_tab_t *active_tab;
+    nk_dock_tab_t   *active_tab;
+    nk_rect_t        content_bounds;
+    struct nk_dock_node_t *node;
 } nk_dock_group_t;
 
 typedef enum
@@ -323,6 +335,7 @@ typedef struct nk_dock_node_t
     } content;
 
     bool active;
+    struct nk_dock_t *dock;
 } nk_dock_node_t;
 
 typedef struct
@@ -376,6 +389,7 @@ typedef enum
     NK_MENUBAR,
     NK_SPLITTER,
     NK_DOCK_NODE,
+    NK_DOCK_GROUP,
     NK_DOCK,
     NK_WORKBENCH
 } nk_type_t;

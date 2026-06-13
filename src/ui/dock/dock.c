@@ -16,6 +16,7 @@
 ***************************************************************/
 
 #include "ui/dock/dock_node.h"
+#include "ui/dock/dock_group.h"
 #include "ui/view/view.h"
 #include <nanokit.h>
 
@@ -46,8 +47,34 @@
 ** MARK: PUBLIC FUNCTIONS
 ***************************************************************/
 
+static void set_dock_backpointers(nk_dock_node_t *nodes, size_t count, nk_dock_t *dock)
+{
+    for (size_t i = 0; i < count; i++)
+    {
+        if (!nodes[i].active) { continue; }
+        nodes[i].dock = (struct nk_dock_t *)dock;
+        if (nodes[i].node_type == NK_DOCK_NODE_TYPE_LEAF)
+        {
+            nodes[i].content.group.node = &nodes[i];
+        }
+    }
+}
+
+static nk_dock_node_t *find_first_leaf(nk_dock_node_t *nodes, size_t count)
+{
+    for (size_t i = 0; i < count; i++)
+    {
+        if (nodes[i].active && nodes[i].node_type == NK_DOCK_NODE_TYPE_LEAF)
+        {
+            return &nodes[i];
+        }
+    }
+    return NULL;
+}
+
 void nk_dock_init(nk_dock_t *dock)
 {
+    dock->view.type = NK_DOCK;
     dock->view.direction = NK_DIRECTION_HORIZONTAL;
     dock->view.background_resource = NKRES_COLOR_BACKGROUND_SECONDARY;
 
@@ -86,21 +113,68 @@ void nk_dock_init(nk_dock_t *dock)
     dock_node_init_group(&dock->main_nodes[0]);
     nk_view_add_child(&dock->main_area, &dock->main_nodes[0].view);
 
-    nk_dock_node_t *new_node;
-    if (dock_node_split(&dock->left_nodes[0], dock->left_nodes, NK_DOCK_NODES_PER_SIDE_AREA, SPLIT_DIRECTION_DOWN, &new_node))
-    {
-        dock_node_split(new_node, dock->left_nodes, NK_DOCK_NODES_PER_SIDE_AREA, SPLIT_DIRECTION_LEFT, NULL);
-    }
+    set_dock_backpointers(dock->left_nodes,   NK_DOCK_NODES_PER_SIDE_AREA, dock);
+    set_dock_backpointers(dock->right_nodes,  NK_DOCK_NODES_PER_SIDE_AREA, dock);
+    set_dock_backpointers(dock->bottom_nodes, NK_DOCK_NODES_PER_SIDE_AREA, dock);
+    set_dock_backpointers(dock->main_nodes,   NK_DOCK_NODES_PER_MAIN_AREA, dock);
 }
 
 void nk_dock_add_tab(nk_dock_t *dock, nk_dock_tab_t *tab, nk_dock_tab_location_t location)
 {
+    nk_dock_node_t *node = NULL;
 
+    switch (location)
+    {
+        case DOCK_TAB_LEFT_AREA:
+        {
+            node = find_first_leaf(dock->left_nodes, NK_DOCK_NODES_PER_SIDE_AREA);
+        } break;
+
+        case DOCK_TAB_RIGHT_AREA:
+        {
+            node = find_first_leaf(dock->right_nodes, NK_DOCK_NODES_PER_SIDE_AREA);
+        } break;
+
+        case DOCK_TAB_BOTTOM_AREA:
+        {
+            node = find_first_leaf(dock->bottom_nodes, NK_DOCK_NODES_PER_SIDE_AREA);
+        } break;
+
+        case DOCK_TAB_MAIN_AREA:
+        {
+            node = find_first_leaf(dock->main_nodes, NK_DOCK_NODES_PER_MAIN_AREA);
+        } break;
+    }
+
+    if (!node) { return; }
+
+    nk_dock_group_t *group = &node->content.group;
+    tab->dock_group = (struct nk_dock_group_t *)group;
+    tab->view.id = ui_id_from_fmt("dock_tab_btn:%p", tab);
+
+    nk_view_add_child(&group->content, &tab->view);
+
+    if (!group->active_tab)
+    {
+        group->active_tab = tab;
+    }
 }
 
 void dock_render(nk_view_t *view)
 {
-
+    CLAY({
+        .layout = {
+            .sizing = {
+                .width = nk_to_clay_sizing(view->width),
+                .height = nk_to_clay_sizing(view->height),
+            },
+            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+        },
+        .backgroundColor = nk_to_clay_color(resource_get_dynamic_color(view->background_resource)),
+    })
+    {
+        view_render_children(view);
+    }
 }
 
 /***************************************************************

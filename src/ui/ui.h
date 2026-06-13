@@ -82,6 +82,9 @@ bool ui_pointer_press(void);
 /* true if pointer release this frame */
 bool ui_pointer_release(void);
 
+/* true while pointer is held down */
+bool ui_pointer_down(void);
+
 nk_point_t ui_pointer_location(void);
 
 Clay_Color nk_to_clay_color(nk_color_t c);

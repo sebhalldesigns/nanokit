@@ -74,6 +74,9 @@ typedef struct
 ** MARK: FUNCTION DEFS
 ***************************************************************/
 
+void ui_set_info(nk_run_info_t *info);
+nk_run_info_t *ui_get_info(void);
+
 uint32_t ui_id_from_fmt(const char* message, ...);
 
 /* true if pointer pressed this frame */

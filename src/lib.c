@@ -19,6 +19,7 @@
 
 #include <backend/backend.h>
 #include <resource/resource.h>
+#include <ui/ui.h>
 
 /***************************************************************
 ** MARK: CONSTANTS & MACROS
@@ -47,6 +48,8 @@ int nk_run(nk_run_info_t *info, int argc, char **argv)
         fprintf(stderr, "Failed to initialize backend.\n");
         return -1;
     }
+
+    ui_set_info(info);
 
     resource_init();
 

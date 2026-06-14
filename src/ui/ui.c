@@ -55,6 +55,8 @@ static bool pointer_down_this_frame = false;
 static bool pointer_down_last_frame = false;
 static nk_point_t pointer_location;
 
+static nk_run_info_t *run_info = NULL;
+
 /***************************************************************
 ** MARK: STATIC FUNCTION DEFS
 ***************************************************************/
@@ -65,6 +67,16 @@ static void render_clay_commands(NVGcontext *vg);
 /***************************************************************
 ** MARK: PUBLIC FUNCTIONS
 ***************************************************************/
+
+void ui_set_info(nk_run_info_t *info)
+{
+    run_info = info;
+}
+
+nk_run_info_t *ui_get_info(void)
+{
+    return run_info;
+}
 
 bool ui_context_init(ui_context_t *context, ui_context_create_info_t *create_info)
 {
@@ -271,9 +283,15 @@ static void render_clay_commands(NVGcontext *vg)
             case CLAY_RENDER_COMMAND_TYPE_RECTANGLE:
             {
                 Clay_RectangleRenderData *data = &cmd->renderData.rectangle;
+                /* Negative corner radii signal a concave outline (see BORDER); the
+                   fill itself stays square there, so clamp negatives to 0. */
+                float ftl = data->cornerRadius.topLeft     > 0 ? data->cornerRadius.topLeft     : 0.0f;
+                float ftr = data->cornerRadius.topRight    > 0 ? data->cornerRadius.topRight    : 0.0f;
+                float fbr = data->cornerRadius.bottomRight > 0 ? data->cornerRadius.bottomRight : 0.0f;
+                float fbl = data->cornerRadius.bottomLeft  > 0 ? data->cornerRadius.bottomLeft  : 0.0f;
                 nvgBeginPath(vg);
-                nvgRoundedRect(vg, box.x, box.y, box.width, box.height,
-                               data->cornerRadius.topLeft);
+                nvgRoundedRectVarying(vg, box.x, box.y, box.width, box.height,
+                                      ftl, ftr, fbr, fbl);
                 nvgFillColor(vg, nvgRGBA(
                     data->backgroundColor.r,
                     data->backgroundColor.g,
@@ -317,30 +335,170 @@ static void render_clay_commands(NVGcontext *vg)
             {
                 Clay_BorderRenderData *data = &cmd->renderData.border;
 
-                /* Draw each border side that has width > 0 */
-                nvgStrokeColor(vg, nvgRGBA(
+                float wl = data->width.left;
+                float wr = data->width.right;
+                float wt = data->width.top;
+                float wb = data->width.bottom;
+                if (wl <= 0 && wr <= 0 && wt <= 0 && wb <= 0) break;
+
+                NVGcolor col = nvgRGBA(
                     data->color.r, data->color.g,
                     data->color.b, data->color.a
-                ));
-
-                float width = data->width.top;
-                if (width <= 0) break;
-
-                nvgBeginPath(vg);
-                nvgRoundedRect(vg,
-                    box.x + width * 0.5f,
-                    box.y + width * 0.5f,
-                    box.width  - width,
-                    box.height - width,
-                    data->cornerRadius.topLeft
                 );
-                nvgStrokeWidth(vg, width);
-                nvgStrokeColor(vg, nvgRGBA(
-                    data->color.r, data->color.g,
-                    data->color.b, data->color.a
-                ));
-                nvgStroke(vg);
 
+                float rtl = data->cornerRadius.topLeft;
+                float rtr = data->cornerRadius.topRight;
+                float rbr = data->cornerRadius.bottomRight;
+                float rbl = data->cornerRadius.bottomLeft;
+
+                /* Fast path: the common case of a uniform, fully-closed border
+                   (popups, tooltips, etc.) — a single rounded-rect stroke. */
+                bool uniform_closed =
+                    wl > 0 && wr > 0 && wt > 0 && wb > 0 &&
+                    wl == wr && wt == wb && wl == wt &&
+                    rtl >= 0 && rtr >= 0 && rbr >= 0 && rbl >= 0 &&
+                    rtl == rtr && rtl == rbr && rtl == rbl;
+
+                if (uniform_closed)
+                {
+                    nvgBeginPath(vg);
+                    nvgRoundedRect(vg,
+                        box.x + wt * 0.5f,
+                        box.y + wt * 0.5f,
+                        box.width  - wt,
+                        box.height - wt,
+                        rtl
+                    );
+                    nvgStrokeWidth(vg, wt);
+                    nvgStrokeColor(vg, col);
+                    nvgStroke(vg);
+                    break;
+                }
+
+
+                /* General path: honours per-side widths and per-corner radii.
+                   A negative radius draws a *concave* fillet that flares the
+                   corner outward (used for the bottom of dock tabs so the tab
+                   outline blends into the tab-bar underside). */
+                float sw = wl;
+                if (wr > sw) sw = wr;
+                if (wt > sw) sw = wt;
+                if (wb > sw) sw = wb;
+
+                float in = sw * 0.5f;
+                float L  = box.x + in;
+                float T  = box.y + in;
+                float R  = box.x + box.width  - in;
+                float Bm = box.y + box.height - in;
+
+                float aTL = rtl < 0 ? -rtl : rtl;
+                float aTR = rtr < 0 ? -rtr : rtr;
+                float aBR = rbr < 0 ? -rbr : rbr;
+                float aBL = rbl < 0 ? -rbl : rbl;
+
+                const float PI_ = NVG_PI;
+
+                nvgStrokeColor(vg, col);
+                nvgStrokeWidth(vg, sw);
+                nvgLineCap(vg, NVG_BUTT);
+                nvgLineJoin(vg, NVG_ROUND);
+                nvgBeginPath(vg);
+
+                /* Walk the perimeter clockwise. Each present segment continues
+                   the current sub-path if its start meets the pen, otherwise a
+                   new sub-path is started. Sides with width 0 (and corners with
+                   radius 0) are skipped, which naturally leaves gaps (e.g. the
+                   open bottom of a tab). */
+                bool  has_pen = false;
+                float cx = 0.0f, cy = 0.0f;
+
+                #define NK_PEN_AT(px, py) \
+                    (has_pen && fabsf((px) - cx) < 0.01f && fabsf((py) - cy) < 0.01f)
+
+                /* Top side */
+                if (wt > 0)
+                {
+                    float sx = L + aTL, sy = T;
+                    float ex = R - aTR, ey = T;
+                    if (!NK_PEN_AT(sx, sy)) nvgMoveTo(vg, sx, sy);
+                    nvgLineTo(vg, ex, ey);
+                    cx = ex; cy = ey; has_pen = true;
+                }
+                /* Top-right corner */
+                if (aTR > 0)
+                {
+                    float sx = R - aTR, sy = T;
+                    if (!NK_PEN_AT(sx, sy)) nvgMoveTo(vg, sx, sy);
+                    if (rtr >= 0)
+                        nvgArc(vg, R - aTR, T + aTR, aTR, 1.5f * PI_, 2.0f * PI_, NVG_CW);
+                    else
+                        nvgArc(vg, R + aTR, T + aTR, aTR, PI_, 1.5f * PI_, NVG_CW);
+                    cx = R; cy = T + aTR; has_pen = true;
+                }
+                /* Right side */
+                if (wr > 0)
+                {
+                    float sx = R, sy = T + aTR;
+                    float ex = R, ey = Bm - aBR;
+                    if (!NK_PEN_AT(sx, sy)) nvgMoveTo(vg, sx, sy);
+                    nvgLineTo(vg, ex, ey);
+                    cx = ex; cy = ey; has_pen = true;
+                }
+                /* Bottom-right corner */
+                if (aBR > 0)
+                {
+                    float sx = R, sy = Bm - aBR;
+                    if (!NK_PEN_AT(sx, sy)) nvgMoveTo(vg, sx, sy);
+                    if (rbr >= 0)
+                        nvgArc(vg, R - aBR, Bm - aBR, aBR, 0.0f, 0.5f * PI_, NVG_CW);
+                    else
+                        nvgArc(vg, R + aBR, Bm - aBR, aBR, PI_, 0.5f * PI_, NVG_CCW);
+                    cx = (rbr >= 0) ? (R - aBR) : (R + aBR); cy = Bm; has_pen = true;
+                }
+                /* Bottom side */
+                if (wb > 0)
+                {
+                    float sx = R - aBR, sy = Bm;
+                    float ex = L + aBL, ey = Bm;
+                    if (!NK_PEN_AT(sx, sy)) nvgMoveTo(vg, sx, sy);
+                    nvgLineTo(vg, ex, ey);
+                    cx = ex; cy = ey; has_pen = true;
+                }
+                /* Bottom-left corner */
+                if (aBL > 0)
+                {
+                    float sx = (rbl >= 0) ? (L + aBL) : (L - aBL), sy = Bm;
+                    if (!NK_PEN_AT(sx, sy)) nvgMoveTo(vg, sx, sy);
+                    if (rbl >= 0)
+                        nvgArc(vg, L + aBL, Bm - aBL, aBL, 0.5f * PI_, PI_, NVG_CW);
+                    else
+                        nvgArc(vg, L - aBL, Bm - aBL, aBL, 0.5f * PI_, 0.0f, NVG_CCW);
+                    cx = L; cy = Bm - aBL; has_pen = true;
+                }
+                /* Left side */
+                if (wl > 0)
+                {
+                    float sx = L, sy = Bm - aBL;
+                    float ex = L, ey = T + aTL;
+                    if (!NK_PEN_AT(sx, sy)) nvgMoveTo(vg, sx, sy);
+                    nvgLineTo(vg, ex, ey);
+                    cx = ex; cy = ey; has_pen = true;
+                }
+                /* Top-left corner */
+                if (aTL > 0)
+                {
+                    float sx = L, sy = T + aTL;
+                    if (!NK_PEN_AT(sx, sy)) nvgMoveTo(vg, sx, sy);
+                    if (rtl >= 0)
+                        nvgArc(vg, L + aTL, T + aTL, aTL, PI_, 1.5f * PI_, NVG_CW);
+                    else
+                        nvgArc(vg, L - aTL, T + aTL, aTL, 0.0f, 0.5f * PI_, NVG_CCW);
+                    cx = L + aTL; cy = T; has_pen = true;
+                }
+
+                #undef NK_PEN_AT
+
+                nvgStroke(vg);
                 break;
             }
 

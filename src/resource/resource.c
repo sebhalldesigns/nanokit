@@ -146,28 +146,42 @@ void resource_load_default(void)
 
     resource_set_dynamic_color(NKRES_COLOR_BACKGROUND_SECONDARY, (nk_dynamic_color_t){
         .colors = {
-            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 0.95f, 0.95f, 0.95f, 1.0f },
+            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 0.975f, 0.975f, 0.975f, 1.0f },
             [NK_RESOURCE_APPEARANCE_DARK] = (nk_color_t){ 0.1f, 0.1f, 0.12f, 1.0f }
         }
     });
 
     resource_set_dynamic_color(NKRES_COLOR_BACKGROUND_TERTIARY, (nk_dynamic_color_t){
         .colors = {
-            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 0.9f, 0.9f, 0.9f, 1.0f },
+            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 0.95f, 0.95f, 0.95f, 1.0f },
             [NK_RESOURCE_APPEARANCE_DARK] = (nk_color_t){ 0.15f, 0.15f, 0.18f, 1.0f }
         }
     });
 
     resource_set_dynamic_color(NKRES_COLOR_BACKGROUND_POPUP, (nk_dynamic_color_t){
         .colors = {
-            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 0.9f, 0.9f, 0.9f, 1.0f },
+            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 1.0f, 1.0f, 1.0f, 1.0f },
             [NK_RESOURCE_APPEARANCE_DARK] = (nk_color_t){ 0.21f, 0.21f, 0.22f, 1.0f }
+        }
+    });
+
+    resource_set_dynamic_color(NKRES_COLOR_POPUP_BORDER, (nk_dynamic_color_t){
+        .colors = {
+            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 0.7f, 0.7f, 0.7f, 1.0f },
+            [NK_RESOURCE_APPEARANCE_DARK] = (nk_color_t){ 0.4f, 0.4f, 0.4f, 1.0f }
+        }
+    });
+
+    resource_set_dynamic_color(NKRES_COLOR_TAB_BORDER, (nk_dynamic_color_t){
+        .colors = {
+            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 0.7f, 0.7f, 0.7f, 1.0f },
+            [NK_RESOURCE_APPEARANCE_DARK]  = (nk_color_t){ 0.4f, 0.4f, 0.4f, 1.0f }
         }
     });
 
     resource_set_dynamic_color(NKRES_COLOR_BACKGROUND_BUTTON_SECONDARY, (nk_dynamic_color_t){
         .colors = {
-            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 0.9f, 0.9f, 0.9f, 1.0f },
+            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 0.9f, 0.9f, 0.9f, 0.6f },
             [NK_RESOURCE_APPEARANCE_DARK] = (nk_color_t){ 0.3f, 0.3f, 0.3f, 0.4f }
         }
     });

@@ -26,6 +26,8 @@
 #include <dwmapi.h>
 #include <windef.h>
 #include <winreg.h>
+#define COBJMACROS
+#include <shobjidl.h>
 
 #include <glad/glad.h>
 #include <winuser.h>
@@ -107,6 +109,12 @@ static HCURSOR hand_cusor = NULL;
 static HCURSOR resize_ns_cusor = NULL;
 static HCURSOR resize_ew_cusor = NULL;
 
+static bool open_file_queued = false;
+static bool single_file = false;
+static nk_file_callback_t open_file_callback = NULL;
+
+static bool open_directory_queued = false;
+static nk_directory_callback_t open_directory_callback = NULL;
 
 /***************************************************************
 ** MARK: STATIC FUNCTION DEFS
@@ -126,6 +134,9 @@ static const char* wide_to_utf8(const wchar_t *wstr);
 static const wchar_t* utf8_to_wide(const char *str);
 
 static bool is_dark_mode(void);
+
+static void open_files(bool single_file, nk_file_callback_t callback);
+static void open_directory(nk_directory_callback_t callback);
 
 /***************************************************************
 ** MARK: PUBLIC FUNCTIONS
@@ -377,6 +388,29 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
     return true;
 }
 
+void nk_window_request_redraw(nk_window_t *window)
+{
+    InvalidateRect((HWND)window, NULL, FALSE);
+}
+
+void nk_io_open_files(bool single_file, nk_file_callback_t callback)
+{
+    assert(callback);
+
+    open_file_callback = callback;
+    single_file = single_file;
+    open_file_queued = true;
+
+}
+
+void nk_io_open_directory(nk_directory_callback_t callback)
+{
+    assert(callback);
+
+    open_directory_callback = callback;
+    open_directory_queued = true;
+}
+
 int backend_run(nk_run_info_t *info, int argc, char **argv)
 {
 
@@ -400,6 +434,18 @@ int backend_run(nk_run_info_t *info, int argc, char **argv)
 
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
+        }
+
+        if (open_file_queued)
+        {
+            open_file_queued = false;
+            open_files(single_file, open_file_callback);
+        }
+
+        if (open_directory_queued)
+        {
+            open_directory_queued = false;
+            open_directory(open_directory_callback);
         }
     }
 
@@ -446,6 +492,8 @@ nk_window_t *backend_get_active_window(void)
 {
     return (nk_window_t*)active_window;
 }
+
+
 
 
 /***************************************************************
@@ -915,4 +963,166 @@ static bool is_dark_mode(void)
     }
 
     return value == 0;
+}
+
+
+static void open_files(bool single_file, nk_file_callback_t callback)
+{
+    assert(callback);
+
+    IFileOpenDialog *dialog = NULL;
+
+    HRESULT hr = CoCreateInstance(
+        &CLSID_FileOpenDialog,
+        NULL,
+        CLSCTX_INPROC_SERVER,
+        &IID_IFileOpenDialog,
+        (void**)&dialog
+    );
+
+    if (FAILED(hr))
+    {
+        return;
+    }
+
+    DWORD options = 0;
+    IFileOpenDialog_GetOptions(dialog, &options);
+
+    if (!single_file)
+    {
+        options |= FOS_ALLOWMULTISELECT;
+    }
+
+    IFileOpenDialog_SetOptions(dialog, options);
+
+    hr = IFileOpenDialog_Show(dialog, (HWND)active_window);
+
+    if (SUCCEEDED(hr))
+    {
+        IShellItemArray *items = NULL;
+
+        hr = IFileOpenDialog_GetResults(dialog, &items);
+
+        if (SUCCEEDED(hr))
+        {
+            DWORD count = 0;
+            IShellItemArray_GetCount(items, &count);
+
+            const char **paths =
+                (const char**)calloc(count, sizeof(char*));
+
+            for (DWORD i = 0; i < count; i++)
+            {
+                IShellItem *item = NULL;
+
+                if (SUCCEEDED(
+                        IShellItemArray_GetItemAt(items, i, &item)))
+                {
+                    PWSTR path_wide = NULL;
+
+                    if (SUCCEEDED(
+                            IShellItem_GetDisplayName(
+                                item,
+                                SIGDN_FILESYSPATH,
+                                &path_wide)))
+                    {
+                        paths[i] = wide_to_utf8(path_wide);
+
+                        CoTaskMemFree(path_wide);
+                    }
+
+                    IShellItem_Release(item);
+                }
+            }
+
+            printf("before callback\n");
+
+            callback(true, paths, count);
+
+            for (DWORD i = 0; i < count; i++)
+            {
+                free((void*)paths[i]);
+            }
+
+            free(paths);
+
+            IShellItemArray_Release(items);
+        }
+    }
+    else if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED))
+    {
+        callback(false, NULL, 0);
+    }
+
+    IFileOpenDialog_Release(dialog);
+}
+
+static void open_directory(nk_directory_callback_t callback)
+{
+    assert(callback);
+
+    IFileOpenDialog *dialog = NULL;
+
+    HRESULT hr = CoCreateInstance(
+        &CLSID_FileOpenDialog,
+        NULL,
+        CLSCTX_INPROC_SERVER,
+        &IID_IFileOpenDialog,
+        (void**)&dialog
+    );
+
+    if (FAILED(hr))
+    {
+        callback(NULL, false);
+        return;
+    }
+
+    DWORD options = 0;
+    IFileOpenDialog_GetOptions(dialog, &options);
+    IFileOpenDialog_SetOptions(dialog, options | FOS_PICKFOLDERS);
+
+    hr = IFileOpenDialog_Show(dialog, (HWND)active_window);
+
+    if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED))
+    {
+        callback(NULL, false);
+        IFileOpenDialog_Release(dialog);
+        return;
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        IShellItem *item = NULL;
+
+        hr = IFileOpenDialog_GetResult(dialog, &item);
+
+        if (SUCCEEDED(hr))
+        {
+            PWSTR path_wide = NULL;
+
+            hr = IShellItem_GetDisplayName(
+                item,
+                SIGDN_FILESYSPATH,
+                &path_wide
+            );
+
+            if (SUCCEEDED(hr))
+            {
+                const char *path = wide_to_utf8(path_wide);
+
+                callback(true, path);
+
+                free((void*)path);
+                CoTaskMemFree(path_wide);
+            }
+
+            IShellItem_Release(item);
+        }
+    }
+    else if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED))
+    {
+        callback(false, NULL);
+    }
+
+    IFileOpenDialog_Release(dialog);
 }

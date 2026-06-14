@@ -70,6 +70,8 @@ typedef enum
     NKRES_COLOR_BACKGROUND_BUTTON_SECONDARY,
     NKRES_COLOR_BACKGROUND_SPLITTER_ACTIVE,
     NKRES_COLOR_BACKGROUND_SPLITTER_INACTIVE,
+    NKRES_COLOR_POPUP_BORDER,
+    NKRES_COLOR_TAB_BORDER,
     NKRES_COLOR_RED,
     NKRES_SIZE_TEXT_PRIMARY,
     NKRES_SIZE_BUTTON_CORNER_RADIUS,
@@ -86,19 +88,30 @@ typedef enum
     NK_CURSOR_RESIZE_EW
 } nk_cursor_t;
 
-typedef void (*nk_void_callback_t)(void);
-typedef bool (*nk_bool_callback_t)(void);
 
 struct nk_view_t;
 struct nk_menu_t;
 struct nk_dock_group_t;
 struct nk_dock_node_t;
 struct nk_dock_t;
+struct nk_button_t;
+
+typedef void (*nk_void_callback_t)(void);
+typedef bool (*nk_bool_callback_t)(void);
+
+/* note that paths are only valid for the duration of the callback */
+typedef void (*nk_file_callback_t)(bool accepted, const char **paths, size_t path_count);
+typedef void (*nk_directory_callback_t)(bool accepted, const char *directory_path);
+
+typedef void (*nk_command_callback_t)(const char *command, const char *args);
+
+typedef void (*nk_button_press_callback_t)(struct nk_button_t *button);
 
 typedef struct
 {
     const char *application_id;
     nk_void_callback_t launch_callback;
+    nk_command_callback_t command_callback;
 } nk_run_info_t;
 
 typedef uintptr_t nk_window_t;
@@ -128,10 +141,7 @@ typedef struct
 
 typedef struct
 {
-    float x;
-    float y;
-    float width;
-    float height;
+    float x, y, width, height;
 } nk_rect_t;
 
 typedef enum {
@@ -201,7 +211,7 @@ typedef enum
     NK_BUTTON_SECONDARY
 } nk_button_type;
 
-typedef struct
+typedef struct nk_button_t
 {
     nk_view_t view;
 
@@ -215,7 +225,9 @@ typedef struct
 
     nk_button_type button_type;
 
-    nk_void_callback_t press_callback;
+    void *user_data;
+
+    nk_button_press_callback_t press_callback;
 } nk_button_t;
 
 typedef struct
@@ -241,6 +253,8 @@ typedef struct
 
     const char *title;
     const char *shortcut;
+
+    const char *command;
 } nk_menu_entry_t;
 
 typedef struct nk_menu_t
@@ -401,8 +415,12 @@ typedef enum
 /* run nanokit */
 int nk_run(nk_run_info_t *info, int argc, char **argv);
 
+void nk_io_open_files(bool single_file, nk_file_callback_t callback);
+void nk_io_open_directory(nk_directory_callback_t callback);
+
 bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window);
 void nk_window_set_cursor(nk_window_t *window, nk_cursor_t cursor);
+void nk_window_request_redraw(nk_window_t *window);
 
 void nk_view_add_child(nk_view_t *parent, nk_view_t *child);
 void nk_view_remove(nk_view_t *child);
@@ -415,7 +433,7 @@ void nk_menubar_init(nk_menubar_t *menubar, nk_menubar_create_info_t *create_inf
 
 void nk_menu_init(nk_menu_t *menu, nk_menubar_t *menubar);
 
-void nk_button_init(nk_button_t *button);
+void nk_button_init(nk_button_t *button, nk_button_press_callback_t callback);
 
 void nk_splitter_init(nk_splitter_t *splitter, float *target, nk_direction_t direction, bool reversed);
 void nk_splitter_init_proportional(nk_splitter_t *splitter, float *target,

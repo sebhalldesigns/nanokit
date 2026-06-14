@@ -18,6 +18,7 @@
 #include "ui/view/view.h"
 #include "ui/dock/dock_node.h"
 #include <nanokit.h>
+#include <backend/backend.h>
 
 #include <stdio.h>
 #include <math.h>
@@ -32,7 +33,7 @@
 ***************************************************************/
 
 #define DRAG_THRESHOLD      (5.0f)
-#define SPLIT_EDGE_FRACTION (0.2f)
+#define SPLIT_EDGE_FRACTION (0.3f)
 #define OVERLAY_ALPHA       (0x60)
 
 /***************************************************************
@@ -447,16 +448,25 @@ void dock_group_render(nk_view_t *view)
         .backgroundColor = nk_to_clay_color(resource_get_dynamic_color(NKRES_COLOR_BACKGROUND_PRIMARY)),
     })
     {
+        Clay_Color tab_border_color = nk_to_clay_color(
+            resource_get_dynamic_color(NKRES_COLOR_TAB_BORDER));
+
+        /* How far each concave fillet reaches past the tab edge (corner radius
+           less the half-pixel stroke inset).  Flare-width spacers beside the
+           active tab break the underside line here so the fillet meets it
+           seamlessly — composed entirely from this frame's layout, no positions. */
+        const float flare = 2.5f;
+
         /* Tab bar */
         CLAY({
             .id = tab_bar_id,
             .layout = {
                 .sizing = {
                     .width  = CLAY_SIZING_GROW(0),
-                    .height = CLAY_SIZING_FIT(0),
+                    .height = CLAY_SIZING_FIXED(25)
                 },
                 .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                .padding = { .left = 0, .right = 0, .top = 0, .bottom = 0 },
+                .padding = { .left = 2, .right = 2, .top = 2, .bottom = 0 },
                 .childGap = 0,
             },
             .backgroundColor = nk_to_clay_color(resource_get_dynamic_color(NKRES_COLOR_BACKGROUND_SECONDARY)),
@@ -523,14 +533,31 @@ void dock_group_render(nk_view_t *view)
                     .layout = {
                         .sizing = {
                             .width  = CLAY_SIZING_FIT(0),
-                            .height = CLAY_SIZING_FIT(0),
+                            .height = CLAY_SIZING_GROW(0)
                         },
                         .layoutDirection = CLAY_LEFT_TO_RIGHT,
                         .childAlignment  = { .y = CLAY_ALIGN_Y_CENTER },
-                        .padding  = { .left = 8, .right = has_close ? 4 : 8, .top = 6, .bottom = 6 },
+                        .padding  = { .left = 8, .right = has_close ? 4 : 8, .top = 0, .bottom = 0 },
                         .childGap = has_close ? 4 : 0,
                     },
                     .backgroundColor = nk_to_clay_color(resource_get_dynamic_color(bg_res)),
+                    /* Active tab: border on the top three sides, convex top
+                       corners and concave (negative-radius) bottom corners.
+                       Non-active tabs carry the underside line as a bottom
+                       border; flare-width spacers on either side of the active
+                       tab break that line so the concave fillets meet it
+                       seamlessly (see the spacers emitted around the tab). */
+                    .border = is_active ? (Clay_BorderElementConfig){
+                        .color = tab_border_color,
+                        .width = { .left = 1, .top = 1, .right = 1 },
+                    } : (Clay_BorderElementConfig){
+                        .color = tab_border_color,
+                        .width = { .bottom = 1 },
+                    },
+                    .cornerRadius = is_active ? (Clay_CornerRadius){
+                                        .topLeft     =  3.0f, .topRight    =  3.0f,
+                                        .bottomLeft  = -3.0f, .bottomRight = -3.0f,
+                                    } : (Clay_CornerRadius){},
                 })
                 {
                     Clay_String title = {
@@ -575,8 +602,9 @@ void dock_group_render(nk_view_t *view)
                     }
                 }
 
-                i++;
+
                 tab_view = tab_view->next_sibling;
+                i++;
             }
 
             /* Trailing insert indicator (append to end) */
@@ -589,6 +617,20 @@ void dock_group_render(nk_view_t *view)
                     .backgroundColor = insert_color,
                 }) {}
             }
+
+            /* Trailing filler — carries the underside line across the empty space
+               to the right of the last tab.  The line is composed from the bottom
+               border of every non-active tab plus this filler; the flare spacers
+               around the active tab leave the only break, with no positions read. */
+            CLAY({
+                .layout = {
+                    .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) },
+                },
+                .border = {
+                    .color = tab_border_color,
+                    .width = { .bottom = 1 },
+                },
+            }) {}
         }
 
         /* Content area */

@@ -18,6 +18,8 @@
 #include "ui/view/view.h"
 #include <nanokit.h>
 
+#include <backend/backend.h>
+
 #include <stdio.h>
 #include <ui/ui.h>
 
@@ -43,6 +45,8 @@
 ** MARK: STATIC FUNCTION DEFS
 ***************************************************************/
 
+static void menu_button_pressed(nk_button_t *button);
+
 /***************************************************************
 ** MARK: PUBLIC FUNCTIONS
 ***************************************************************/
@@ -65,6 +69,7 @@ void nk_menu_init(nk_menu_t *menu, nk_menubar_t *menubar)
     menu->popup.id = ui_id_from_fmt("menu/popup:%s", menu->heading);
     menu->popup.height.type = NK_SIZING_GROW;
     menu->popup.gap = 2.0f;
+    menu->popup.parent = &menu->view;
 
     for (int i = 0; i < menu->entries_count; i++)
     {
@@ -74,7 +79,8 @@ void nk_menu_init(nk_menu_t *menu, nk_menubar_t *menubar)
 
         menu->entries[i].button.secondary_text = menu->entries[i].shortcut;
 
-        nk_button_init(&menu->entries[i].button);
+        nk_button_init(&menu->entries[i].button, menu_button_pressed);
+        menu->entries[i].button.user_data = menu->entries[i].command;
         menu->entries[i].button.view.width.type = NK_SIZING_GROW;
 
         nk_view_add_child(&menu->popup, &menu->entries[i].button.view);
@@ -165,9 +171,9 @@ void menu_render(nk_view_t *view)
                     .zIndex = 100,
                     .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH
                 },
-                .backgroundColor = nk_to_clay_color(resource_get_dynamic_color(NKRES_COLOR_BACKGROUND_TERTIARY)),
+                .backgroundColor = nk_to_clay_color(resource_get_dynamic_color(NKRES_COLOR_BACKGROUND_POPUP)),
                 .border = {
-                    .color = nk_to_clay_color(resource_get_dynamic_color(NKRES_COLOR_BACKGROUND_POPUP)),
+                    .color = nk_to_clay_color(resource_get_dynamic_color(NKRES_COLOR_POPUP_BORDER)),
                     .width = CLAY_BORDER_OUTSIDE(1)
                 },
                 .layout = {
@@ -188,3 +194,32 @@ void menu_render(nk_view_t *view)
 /***************************************************************
 ** MARK: STATIC FUNCTIONS
 ***************************************************************/
+
+static void menu_button_pressed(nk_button_t *button)
+{
+    if (!button->user_data) return;
+
+    printf("Menu button pressed: %s\n", (const char *)button->user_data);
+
+    nk_command_callback_t command_callback = ui_get_info()->command_callback;
+
+    if (command_callback)
+    {
+        command_callback((const char *)button->user_data, NULL);
+    }
+
+    nk_menu_t *menu = (nk_menu_t *)((nk_view_t*)button->view.parent)->parent;
+
+    if (menu && menu->parent_menubar)
+    {
+        menu->parent_menubar->is_open = false;
+        menu->parent_menubar->open_menu = NULL;
+        printf("Menu closed after button press\n");
+    }
+    else
+    {
+        fprintf(stderr, "Error: Menu button pressed but parent menubar is NULL\n");
+    }
+
+    nk_window_request_redraw(backend_get_active_window());
+}

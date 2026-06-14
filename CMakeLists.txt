@@ -12,6 +12,8 @@ if (WIN32)
   set(BACKEND_LIBS
         opengl32
         dwmapi
+        ole32
+        shell32
     )
 elseif(LINUX)
 

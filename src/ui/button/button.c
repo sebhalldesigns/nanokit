@@ -43,7 +43,7 @@
 ** MARK: PUBLIC FUNCTIONS
 ***************************************************************/
 
-void nk_button_init(nk_button_t *button)
+void nk_button_init(nk_button_t *button, nk_button_press_callback_t callback)
 {
     button->view.type = NK_BUTTON;
     button->view.id = ui_id_from_fmt("button:%s", button->text);
@@ -62,7 +62,8 @@ void nk_button_init(nk_button_t *button)
     button->view.padding.bottom = 4;
     button->view.corner_radius = resource_get_float(NKRES_SIZE_BUTTON_CORNER_RADIUS);
 
-
+    button->user_data = NULL;
+    button->press_callback = callback;
 
 
 }
@@ -77,6 +78,7 @@ void button_render(nk_view_t *view)
     Clay_ElementId clay_id = { .id = btn->view.id };
 
     bool hovered = Clay_PointerOver(clay_id);
+    bool click = hovered && ui_pointer_press();
 
     if (hovered)
     {
@@ -85,6 +87,12 @@ void button_render(nk_view_t *view)
     else
     {
         btn->view.background_resource = NKRES_NONE;
+    }
+
+
+    if (click && btn->press_callback)
+    {
+        btn->press_callback(btn);
     }
 
     Clay_Color bg = nk_to_clay_color(resource_get_dynamic_color(view->background_resource));

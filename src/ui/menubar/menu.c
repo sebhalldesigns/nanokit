@@ -73,17 +73,30 @@ void nk_menu_init(nk_menu_t *menu, nk_menubar_t *menubar)
 
     for (int i = 0; i < menu->entries_count; i++)
     {
-        menu->entries[i].button.view.type = NK_LABEL;
-        menu->entries[i].button.text = menu->entries[i].title;
-        menu->entries[i].button.button_type = NK_BUTTON_SECONDARY;
+        if (menu->entries[i].is_separator)
+        {
+            menu->entries[i].button.view.type = NK_VIEW;
+            menu->entries[i].button.view.height.type = NK_SIZING_FIXED;
+            menu->entries[i].button.view.height.value = 1.0f;
+            menu->entries[i].button.view.background_resource = NKRES_COLOR_POPUP_BORDER;
+            menu->entries[i].button.view.parent = &menu->popup;
+            nk_view_add_child(&menu->popup, &menu->entries[i].button.view);
+        }
+        else
+        {
+            menu->entries[i].button.view.type = NK_LABEL;
+            menu->entries[i].button.text = menu->entries[i].title;
+            menu->entries[i].button.button_type = NK_BUTTON_SECONDARY;
 
-        menu->entries[i].button.secondary_text = menu->entries[i].shortcut;
+            menu->entries[i].button.secondary_text = menu->entries[i].shortcut;
+            nk_button_init(&menu->entries[i].button, menu_button_pressed);
 
-        nk_button_init(&menu->entries[i].button, menu_button_pressed);
-        menu->entries[i].button.user_data = menu->entries[i].command;
-        menu->entries[i].button.view.width.type = NK_SIZING_GROW;
+            menu->entries[i].button.user_data = menu->entries[i].command;
+            menu->entries[i].button.view.width.type = NK_SIZING_GROW;
 
-        nk_view_add_child(&menu->popup, &menu->entries[i].button.view);
+            nk_view_add_child(&menu->popup, &menu->entries[i].button.view);
+        }
+
     }
 
     menu->parent_menubar = menubar;

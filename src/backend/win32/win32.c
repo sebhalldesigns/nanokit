@@ -83,6 +83,8 @@ typedef struct {
     ui_context_t view_context;
     nk_view_t *root_view;
     bool dark_mode;
+    float scroll_delta_x;
+    float scroll_delta_y;
 } win32_window_data_t;
 
 
@@ -116,6 +118,9 @@ static nk_file_callback_t open_file_callback = NULL;
 static bool open_directory_queued = false;
 static nk_directory_callback_t open_directory_callback = NULL;
 
+static LARGE_INTEGER timer_freq;
+static LARGE_INTEGER timer_start;
+
 /***************************************************************
 ** MARK: STATIC FUNCTION DEFS
 ***************************************************************/
@@ -138,6 +143,8 @@ static bool is_dark_mode(void);
 static void open_files(bool single_file, nk_file_callback_t callback);
 static void open_directory(nk_directory_callback_t callback);
 
+static uint64_t elapsed_us(void);
+
 /***************************************************************
 ** MARK: PUBLIC FUNCTIONS
 ***************************************************************/
@@ -153,6 +160,9 @@ bool backend_init()
     resize_ew_cusor = LoadCursor(NULL, IDC_SIZEWE);
 
     set_process_dpi_awareness();
+
+    QueryPerformanceFrequency(&timer_freq);
+    QueryPerformanceCounter(&timer_start);
 
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 
@@ -654,10 +664,16 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
                     .dark_mode = data->dark_mode,
                     .pointer_x = (float)data->pointer_x,
                     .pointer_y = (float)data->pointer_y,
-                    .mouse_down = data->pointer_down
+                    .mouse_down = data->pointer_down,
+                    .scroll_delta_x = data->scroll_delta_x,
+                    .scroll_delta_y = data->scroll_delta_y,
+                    .time_micros = elapsed_us()
                 };
 
                 ui_context_render(&data->view_context, data->root_view, &render_info);
+
+                data->scroll_delta_y = 0.0f;
+                data->scroll_delta_x = 0.0f;
 
                 SwapBuffers(data->gldc);
 
@@ -725,6 +741,11 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
 
         case WM_MOUSEWHEEL:
             InvalidateRect(window, NULL, FALSE);
+
+            if (data)
+            {
+                data->scroll_delta_y = (float)GET_WHEEL_DELTA_WPARAM(wparam) / (float)WHEEL_DELTA * 5.0f;
+            }
             return 0;
 
         case WM_CHAR:
@@ -738,6 +759,7 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
             InvalidateRect(window, NULL, FALSE);
             return 0;
         }
+
 
         default:
         {
@@ -1125,4 +1147,15 @@ static void open_directory(nk_directory_callback_t callback)
     }
 
     IFileOpenDialog_Release(dialog);
+}
+
+static uint64_t elapsed_us(void)
+{
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+
+    return (uint64_t)(
+        (now.QuadPart - timer_start.QuadPart) * 1000000ULL /
+        timer_freq.QuadPart
+    );
 }

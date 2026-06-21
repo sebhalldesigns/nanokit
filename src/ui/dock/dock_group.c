@@ -463,12 +463,13 @@ void dock_group_render(nk_view_t *view)
             .layout = {
                 .sizing = {
                     .width  = CLAY_SIZING_GROW(0),
-                    .height = CLAY_SIZING_FIXED(25)
+                    .height = CLAY_SIZING_FIXED(25),
                 },
                 .layoutDirection = CLAY_LEFT_TO_RIGHT,
                 .padding = { .left = 2, .right = 2, .top = 2, .bottom = 0 },
                 .childGap = 0,
             },
+            .clip.horizontal = true,
             .backgroundColor = nk_to_clay_color(resource_get_dynamic_color(NKRES_COLOR_BACKGROUND_SECONDARY)),
         })
         {
@@ -657,7 +658,7 @@ void dock_group_render(nk_view_t *view)
 
             if (group->active_tab)
             {
-                view_render_children(&group->active_tab->view);
+                view_render(&group->active_tab->view);
             }
         }
     }

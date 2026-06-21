@@ -32,6 +32,9 @@ extern "C" {
 #include <ui/button/button.h>
 #include <ui/label/label.h>
 
+#include <ui/scroll_view/scroll_view.h>
+#include <ui/tree/tree.h>
+
 #include <ui/menubar/menubar.h>
 #include <ui/menubar/menu.h>
 
@@ -68,6 +71,9 @@ typedef struct
     float pointer_x;
     float pointer_y;
     bool mouse_down;
+    float scroll_delta_x;
+    float scroll_delta_y;
+    size_t time_micros; /* time since program start */
 } ui_context_render_info_t;
 
 /***************************************************************

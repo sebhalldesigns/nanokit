@@ -60,6 +60,8 @@ add_library(nanokit STATIC
     src/ui/view/view.c
     src/ui/label/label.c
     src/ui/button/button.c
+    src/ui/scroll_view/scroll_view.c
+    src/ui/tree/tree.c
     src/ui/menubar/menubar.c
     src/ui/menubar/menu.c
     src/ui/splitter/splitter.c

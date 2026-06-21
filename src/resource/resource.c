@@ -179,6 +179,13 @@ void resource_load_default(void)
         }
     });
 
+    resource_set_dynamic_color(NKRES_COLOR_BACKGROUND_SELECTED, (nk_dynamic_color_t){
+        .colors = {
+            [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 0.278f, 0.529f, 0.820f, 0.45f },
+            [NK_RESOURCE_APPEARANCE_DARK] = (nk_color_t){ 0.278f, 0.529f, 0.820f, 0.55f }
+        }
+    });
+
     resource_set_dynamic_color(NKRES_COLOR_BACKGROUND_BUTTON_SECONDARY, (nk_dynamic_color_t){
         .colors = {
             [NK_RESOURCE_APPEARANCE_LIGHT] = (nk_color_t){ 0.9f, 0.9f, 0.9f, 0.6f },
@@ -212,6 +219,7 @@ void resource_load_default(void)
     resource_set_float(NKRES_SIZE_BUTTON_CORNER_RADIUS, 3.0f);
     resource_set_float(NKRES_SIZE_POPUP_CORNER_RADIUS, 4.0f);
     resource_set_float(NKRES_SIZE_SPLITTER_THICKNESS, 2.0f);
+    resource_set_float(NKRES_SIZE_SCROLLBAR_THICKNESS, 5.0f);
 }
 
 

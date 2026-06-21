@@ -72,11 +72,13 @@ typedef enum
     NKRES_COLOR_BACKGROUND_SPLITTER_INACTIVE,
     NKRES_COLOR_POPUP_BORDER,
     NKRES_COLOR_TAB_BORDER,
+    NKRES_COLOR_BACKGROUND_SELECTED,
     NKRES_COLOR_RED,
     NKRES_SIZE_TEXT_PRIMARY,
     NKRES_SIZE_BUTTON_CORNER_RADIUS,
     NKRES_SIZE_POPUP_CORNER_RADIUS,
-    NKRES_SIZE_SPLITTER_THICKNESS
+    NKRES_SIZE_SPLITTER_THICKNESS,
+    NKRES_SIZE_SCROLLBAR_THICKNESS
 } nk_resource_t;
 
 typedef enum
@@ -95,6 +97,7 @@ struct nk_dock_group_t;
 struct nk_dock_node_t;
 struct nk_dock_t;
 struct nk_button_t;
+struct nk_tree_item_t;
 
 typedef void (*nk_void_callback_t)(void);
 typedef bool (*nk_bool_callback_t)(void);
@@ -106,6 +109,8 @@ typedef void (*nk_directory_callback_t)(bool accepted, const char *directory_pat
 typedef void (*nk_command_callback_t)(const char *command, const char *args);
 
 typedef void (*nk_button_press_callback_t)(struct nk_button_t *button);
+
+typedef void (*nk_tree_item_press_callback_t)(struct nk_tree_item_t *item);
 
 typedef struct
 {
@@ -242,6 +247,33 @@ typedef struct
 {
     nk_view_t view;
 
+    /* When set, only the children intersecting the viewport are emitted, with
+       spacers reserving the off-screen height. Requires uniform item_height. */
+    bool virtualize;
+    float item_height;
+} nk_scroll_view_t;
+
+typedef struct nk_tree_item_t
+{
+    nk_view_t view;
+
+    const char *text;
+    nk_text_info_t text_info;
+
+    int depth;
+    bool is_folder;
+    bool is_expanded;
+    bool selected;
+
+    void *user_data;
+
+    nk_tree_item_press_callback_t press_callback;
+} nk_tree_item_t;
+
+typedef struct
+{
+    nk_view_t view;
+
     bool is_open;
     bool is_initial_press;
     struct nk_menu_t *open_menu;
@@ -249,7 +281,9 @@ typedef struct
 
 typedef struct
 {
-    nk_button_t button;
+    nk_button_t button; /* used as a view for separator case */
+
+    bool is_separator;
 
     const char *title;
     const char *shortcut;
@@ -399,6 +433,8 @@ typedef enum
     NK_VIEW,
     NK_LABEL,
     NK_BUTTON,
+    NK_SCROLL_VIEW,
+    NK_TREE_ITEM,
     NK_MENU,
     NK_MENUBAR,
     NK_SPLITTER,
@@ -434,6 +470,10 @@ void nk_menubar_init(nk_menubar_t *menubar, nk_menubar_create_info_t *create_inf
 void nk_menu_init(nk_menu_t *menu, nk_menubar_t *menubar);
 
 void nk_button_init(nk_button_t *button, nk_button_press_callback_t callback);
+
+void nk_scroll_view_init(nk_scroll_view_t *scroll_view);
+
+void nk_tree_item_init(nk_tree_item_t *item, nk_tree_item_press_callback_t callback);
 
 void nk_splitter_init(nk_splitter_t *splitter, float *target, nk_direction_t direction, bool reversed);
 void nk_splitter_init_proportional(nk_splitter_t *splitter, float *target,

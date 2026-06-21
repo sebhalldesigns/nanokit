@@ -140,6 +140,20 @@ void ui_context_render(ui_context_t *context, nk_view_t *root, ui_context_render
 
     Clay_SetLayoutDimensions((Clay_Dimensions){render_info->width, render_info->height});
     Clay_SetPointerState((Clay_Vector2){.x = render_info->pointer_x, .y = render_info->pointer_y - render_info->offset_y}, render_info->mouse_down);
+
+    bool drag_scroll = false;
+
+    #if __APPLE__
+    drag_scroll = true;
+    #endif
+
+    static size_t last_time_micros = 0;
+    size_t delta_time_micros = render_info->time_micros - last_time_micros;
+    last_time_micros = render_info->time_micros;
+
+    Clay_UpdateScrollContainers(drag_scroll, (Clay_Vector2){.x = render_info->scroll_delta_x, .y = render_info->scroll_delta_y}, (float)delta_time_micros * 0.000001f);
+
+
     Clay_BeginLayout();
 
     view_render(root);

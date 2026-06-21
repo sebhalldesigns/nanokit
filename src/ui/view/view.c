@@ -142,6 +142,16 @@ void view_render(nk_view_t *view)
             button_render(view);
         } break;
 
+        case NK_SCROLL_VIEW:
+        {
+            scroll_view_render(view);
+        } break;
+
+        case NK_TREE_ITEM:
+        {
+            tree_item_render(view);
+        } break;
+
         case NK_MENU:
         {
             menu_render(view);

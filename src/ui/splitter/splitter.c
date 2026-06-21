@@ -62,6 +62,7 @@ void nk_splitter_init(nk_splitter_t *splitter, float *target, nk_direction_t dir
     splitter->direction = direction;
     splitter->reversed = reversed;
     splitter->sizing = false;
+    splitter->min = 0.0f;
 
     if (direction == NK_DIRECTION_HORIZONTAL)
     {
@@ -145,6 +146,32 @@ void splitter_render(nk_view_t *view)
         {
             float dy = (new_location.y - splitter->start_point.y) / *splitter->reference;
             *splitter->target = splitter->start_target_size + (dy * reversed);
+        }
+    }
+
+    /* Enforce the minimum every frame so a pane can never be dragged (or left by
+       a resize) below its floor. A proportional splitter sits between two sized
+       panes that share the reference, so it is bounded on BOTH sides — the sized
+       pane keeps `min`, and the complementary pane keeps `min` too — otherwise
+       dragging fully one way collapses the opposite pane to nothing and overflows
+       past it. A plain splitter only bounds the pane it sizes. */
+    if (splitter->min > 0.0f)
+    {
+        if (splitter->proportional)
+        {
+            if (splitter->reference && *splitter->reference > 0.0f)
+            {
+                float min_fraction = splitter->min / *splitter->reference;
+                /* Too small to fit two minimums — settle on an even split. */
+                if (min_fraction > 0.5f) min_fraction = 0.5f;
+
+                if (*splitter->target < min_fraction)        *splitter->target = min_fraction;
+                if (*splitter->target > 1.0f - min_fraction) *splitter->target = 1.0f - min_fraction;
+            }
+        }
+        else if (*splitter->target < splitter->min)
+        {
+            *splitter->target = splitter->min;
         }
     }
 

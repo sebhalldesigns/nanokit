@@ -334,6 +334,10 @@ typedef struct
 
     bool proportional;
     float *reference;
+
+    /* Lower bound (pixels) for the pane this splitter sizes. 0 = unbounded. For
+       proportional splitters it is converted to a fraction of `reference`. */
+    float min;
 } nk_splitter_t;
 
 typedef enum

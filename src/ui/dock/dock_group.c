@@ -35,6 +35,7 @@
 #define DRAG_THRESHOLD      (5.0f)
 #define SPLIT_EDGE_FRACTION (0.3f)
 #define OVERLAY_ALPHA       (0x60)
+#define TAB_MIN_WIDTH       (50.0f)
 
 /***************************************************************
 ** MARK: TYPEDEFS
@@ -562,7 +563,7 @@ void dock_group_render(nk_view_t *view)
                     .id = tab_btn_id,
                     .layout = {
                         .sizing = {
-                            .width  = CLAY_SIZING_FIT(0),
+                            .width  = CLAY_SIZING_FIT(TAB_MIN_WIDTH),
                             .height = CLAY_SIZING_GROW(0)
                         },
                         .layoutDirection = CLAY_LEFT_TO_RIGHT,

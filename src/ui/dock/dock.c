@@ -31,6 +31,9 @@
 ** MARK: CONSTANTS & MACROS
 ***************************************************************/
 
+/* Smallest size, in pixels, a dock side area may be resized to. */
+#define DOCK_AREA_MIN_SIZE (50.0f)
+
 /***************************************************************
 ** MARK: TYPEDEFS
 ***************************************************************/
@@ -91,6 +94,9 @@ void nk_dock_init(nk_dock_t *dock)
     nk_splitter_init(&dock->left_splitter, &dock->left_area.width.value, NK_DIRECTION_HORIZONTAL, false);
     nk_splitter_init(&dock->right_splitter, &dock->right_area.width.value, NK_DIRECTION_HORIZONTAL, true);
 
+    dock->left_splitter.min  = DOCK_AREA_MIN_SIZE;
+    dock->right_splitter.min = DOCK_AREA_MIN_SIZE;
+
     dock->right_area.width.type = NK_SIZING_FIXED;
     dock->right_area.width.value = 250;
 
@@ -103,6 +109,8 @@ void nk_dock_init(nk_dock_t *dock)
     dock->central_area.direction = NK_DIRECTION_VERTICAL;
 
     nk_splitter_init(&dock->bottom_splitter, &dock->bottom_area.height.value, NK_DIRECTION_VERTICAL, true);
+
+    dock->bottom_splitter.min = DOCK_AREA_MIN_SIZE;
 
     dock->bottom_area.height.type = NK_SIZING_FIXED;
     dock->bottom_area.height.value = 250;

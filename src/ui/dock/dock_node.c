@@ -31,6 +31,9 @@
 ** MARK: CONSTANTS & MACROS
 ***************************************************************/
 
+/* Smallest size, in pixels, either pane of a split tab group may shrink to. */
+#define DOCK_NODE_MIN_SIZE (50.0f)
+
 /***************************************************************
 ** MARK: TYPEDEFS
 ***************************************************************/
@@ -185,6 +188,13 @@ void dock_node_init_split(nk_dock_node_t *node, nk_dock_node_t *child_a,
         {
 
         } break;
+    }
+
+    /* Bound the split so neither tab group can be collapsed away (and overflow
+       onto its neighbours) by dragging the divider fully one way. */
+    if (direction != SPLIT_DIRECTION_NONE)
+    {
+        node->content.split.splitter.min = DOCK_NODE_MIN_SIZE;
     }
 }
 

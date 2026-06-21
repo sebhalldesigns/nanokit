@@ -96,6 +96,9 @@ bool ui_pointer_down(void);
 
 nk_point_t ui_pointer_location(void);
 
+/* size of the current window's drawable area, in layout coordinates */
+nk_point_t ui_window_size(void);
+
 Clay_Color nk_to_clay_color(nk_color_t c);
 
 Clay_SizingAxis nk_to_clay_sizing(nk_sizing_t s);

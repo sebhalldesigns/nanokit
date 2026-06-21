@@ -35,6 +35,7 @@
 
 #include <stdio.h>
 #include <stdarg.h>
+#include <math.h>
 
 /***************************************************************
 ** MARK: CONSTANTS & MACROS
@@ -51,9 +52,14 @@
 static char id_buffer[ID_MAX_STRING_LENGTH];
 static NVGcontext* g_vg = NULL;
 
+/* Embedded Bootstrap Icons font (woff2), provided by the build. */
+extern const unsigned char resources_fonts_bootstrap_icons_woff2[];
+extern const unsigned int  resources_fonts_bootstrap_icons_woff2_size;
+
 static bool pointer_down_this_frame = false;
 static bool pointer_down_last_frame = false;
 static nk_point_t pointer_location;
+static nk_point_t window_size;
 
 static nk_run_info_t *run_info = NULL;
 
@@ -107,6 +113,21 @@ bool ui_context_init(ui_context_t *context, ui_context_create_info_t *create_inf
         return false;
     }
 
+    /* Bootstrap Icons, embedded in the binary (no runtime file dependency, so it
+       works the same on every backend). The .woff2 is decompressed by FreeType,
+       which the build enables via FT_REQUIRE_BROTLI. freeData is 0 because the
+       data is a const global that outlives the context. */
+    int icon_font = nvgCreateFontMem(
+        vg, "icons",
+        (unsigned char *)resources_fonts_bootstrap_icons_woff2,
+        (int)resources_fonts_bootstrap_icons_woff2_size,
+        0);
+    if (icon_font == -1)
+    {
+        fprintf(stderr, "Failed to load icon font\n");
+        return false;
+    }
+
     g_vg = vg;
 
     Clay_SetMaxElementCount(65536);
@@ -137,6 +158,8 @@ void ui_context_render(ui_context_t *context, nk_view_t *root, ui_context_render
     pointer_down_this_frame = render_info->mouse_down;
     pointer_location.x = render_info->pointer_x;
     pointer_location.y = render_info->pointer_y;
+    window_size.x = render_info->width;
+    window_size.y = render_info->height;
 
     Clay_SetLayoutDimensions((Clay_Dimensions){render_info->width, render_info->height});
     Clay_SetPointerState((Clay_Vector2){.x = render_info->pointer_x, .y = render_info->pointer_y - render_info->offset_y}, render_info->mouse_down);
@@ -250,6 +273,11 @@ nk_point_t ui_pointer_location(void)
     return pointer_location;
 }
 
+nk_point_t ui_window_size(void)
+{
+    return window_size;
+}
+
 /***************************************************************
 ** MARK: STATIC FUNCTIONS
 ***************************************************************/
@@ -265,6 +293,9 @@ static Clay_Dimensions measure_text(Clay_StringSlice text, Clay_TextElementConfi
     {
         case NK_TEXT_BOLD:
             nvgFontFace(g_vg, "default-bold");
+            break;
+        case NK_TEXT_ICON:
+            nvgFontFace(g_vg, "icons");
             break;
         default:
             nvgFontFace(g_vg, "default");
@@ -325,6 +356,9 @@ static void render_clay_commands(NVGcontext *vg)
                 {
                     case NK_TEXT_BOLD:
                         nvgFontFace(vg, "default-bold");
+                        break;
+                    case NK_TEXT_ICON:
+                        nvgFontFace(vg, "icons");
                         break;
                     default:
                         nvgFontFace(vg, "default");
@@ -399,16 +433,43 @@ static void render_clay_commands(NVGcontext *vg)
                 if (wt > sw) sw = wt;
                 if (wb > sw) sw = wb;
 
+                /* Snap the outer edges to the pixel grid before insetting. A
+                   1px stroke is only crisp when centred on a pixel centre
+                   (integer + 0.5); at the fractional positions Clay produces
+                   mid-resize it smears across two rows and the line reads as
+                   faint/dashed in places, healing once the geometry lands back
+                   on integers. Snapping keeps every frame crisp and makes the
+                   abutting single-side segments of the tab-bar underside line
+                   align exactly. */
+                float bx0 = roundf(box.x);
+                float by0 = roundf(box.y);
+                float bx1 = roundf(box.x + box.width);
+                float by1 = roundf(box.y + box.height);
+
                 float in = sw * 0.5f;
-                float L  = box.x + in;
-                float T  = box.y + in;
-                float R  = box.x + box.width  - in;
-                float Bm = box.y + box.height - in;
+                float L  = bx0 + in;
+                float T  = by0 + in;
+                float R  = bx1 - in;
+                float Bm = by1 - in;
 
                 float aTL = rtl < 0 ? -rtl : rtl;
                 float aTR = rtr < 0 ? -rtr : rtr;
                 float aBR = rbr < 0 ? -rbr : rbr;
                 float aBL = rbl < 0 ? -rbl : rbl;
+
+                /* True outer edges. A side is normally inset by half the stroke
+                   at each end so it tucks under the perpendicular border at the
+                   corner. When that perpendicular border is absent (and no
+                   corner rounds the end off) the inset instead leaves a ~half-
+                   pixel notch, so a run of adjacent single-side borders — e.g.
+                   the tab-bar underside line stitched from each tab's bottom
+                   border plus the trailing filler — renders as a broken, dotted
+                   line whose visibility flickers with sub-pixel position. Extend
+                   such an end to the real edge so neighbours butt seamlessly. */
+                float ex_l = bx0;
+                float ex_r = bx1;
+                float ex_t = by0;
+                float ex_b = by1;
 
                 const float PI_ = NVG_PI;
 
@@ -432,8 +493,8 @@ static void render_clay_commands(NVGcontext *vg)
                 /* Top side */
                 if (wt > 0)
                 {
-                    float sx = L + aTL, sy = T;
-                    float ex = R - aTR, ey = T;
+                    float sx = (wl > 0 || aTL > 0) ? (L + aTL) : ex_l, sy = T;
+                    float ex = (wr > 0 || aTR > 0) ? (R - aTR) : ex_r, ey = T;
                     if (!NK_PEN_AT(sx, sy)) nvgMoveTo(vg, sx, sy);
                     nvgLineTo(vg, ex, ey);
                     cx = ex; cy = ey; has_pen = true;
@@ -452,8 +513,8 @@ static void render_clay_commands(NVGcontext *vg)
                 /* Right side */
                 if (wr > 0)
                 {
-                    float sx = R, sy = T + aTR;
-                    float ex = R, ey = Bm - aBR;
+                    float sx = R, sy = (wt > 0 || aTR > 0) ? (T + aTR) : ex_t;
+                    float ex = R, ey = (wb > 0 || aBR > 0) ? (Bm - aBR) : ex_b;
                     if (!NK_PEN_AT(sx, sy)) nvgMoveTo(vg, sx, sy);
                     nvgLineTo(vg, ex, ey);
                     cx = ex; cy = ey; has_pen = true;
@@ -472,8 +533,8 @@ static void render_clay_commands(NVGcontext *vg)
                 /* Bottom side */
                 if (wb > 0)
                 {
-                    float sx = R - aBR, sy = Bm;
-                    float ex = L + aBL, ey = Bm;
+                    float sx = (wr > 0 || aBR > 0) ? (R - aBR) : ex_r, sy = Bm;
+                    float ex = (wl > 0 || aBL > 0) ? (L + aBL) : ex_l, ey = Bm;
                     if (!NK_PEN_AT(sx, sy)) nvgMoveTo(vg, sx, sy);
                     nvgLineTo(vg, ex, ey);
                     cx = ex; cy = ey; has_pen = true;
@@ -492,8 +553,8 @@ static void render_clay_commands(NVGcontext *vg)
                 /* Left side */
                 if (wl > 0)
                 {
-                    float sx = L, sy = Bm - aBL;
-                    float ex = L, ey = T + aTL;
+                    float sx = L, sy = (wb > 0 || aBL > 0) ? (Bm - aBL) : ex_b;
+                    float ex = L, ey = (wt > 0 || aTL > 0) ? (T + aTL) : ex_t;
                     if (!NK_PEN_AT(sx, sy)) nvgMoveTo(vg, sx, sy);
                     nvgLineTo(vg, ex, ey);
                     cx = ex; cy = ey; has_pen = true;

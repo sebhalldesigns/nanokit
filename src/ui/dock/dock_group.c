@@ -435,6 +435,48 @@ void dock_group_render(nk_view_t *view)
         }
     }
 
+    /* Tab interaction pre-pass — resolve close-press and tab activation/drag-
+       start BEFORE the bar is laid out. Doing it inside the render loop made a
+       newly-pressed tab to the right of the old active one appear alongside it
+       (the old tab was already emitted as active earlier in the same loop, so
+       both looked selected until the next redraw). Settling active_tab up front
+       means the whole bar renders consistently and switching is immediate on
+       pointer-down for every tab. Hit-testing uses last frame's geometry via
+       Clay_PointerOver, which is exactly what the loop relied on too. */
+    {
+        nk_view_t *tab_view = group->content.first_child;
+        while (tab_view)
+        {
+            nk_dock_tab_t *tab       = (nk_dock_tab_t *)tab_view;
+            bool           has_close = !tab->is_tool;
+
+            Clay_ElementId tab_btn_id = { .id = tab->view.id };
+            Clay_ElementId close_id   = { .id = ui_id_from_fmt("dock_tab_close:%p", tab) };
+
+            bool tab_hovered   = Clay_PointerOver(tab_btn_id);
+            bool show_x        = has_close && (tab == group->active_tab || tab_hovered);
+            bool close_hovered = show_x && Clay_PointerOver(close_id);
+
+            /* Close button press — arm pending close, suppress drag */
+            if (has_close && close_hovered && ui_pointer_press() && !drag.tab)
+            {
+                drag.close_tab   = tab;
+                drag.close_group = group;
+            }
+
+            /* Drag start / activation — only when pointer is not on close button */
+            if (tab_hovered && !close_hovered && ui_pointer_press() && !drag.close_tab)
+            {
+                drag.tab          = tab;
+                drag.source_group = group;
+                drag.press_point  = ui_pointer_location();
+                group->active_tab = tab;
+            }
+
+            tab_view = tab_view->next_sibling;
+        }
+    }
+
     /* Main layout */
     CLAY({
         .id = clay_id,
@@ -497,22 +539,9 @@ void dock_group_render(nk_view_t *view)
                 bool show_x        = has_close && (is_active || tab_hovered);
                 bool close_hovered = show_x && Clay_PointerOver(close_id);
 
-                /* Close button press — arm pending close, suppress drag */
-                if (has_close && close_hovered && ui_pointer_press() && !drag.tab)
-                {
-                    drag.close_tab   = tab;
-                    drag.close_group = group;
-                }
-
-                /* Drag start — only when pointer is not on close button */
-                if (tab_hovered && !close_hovered && ui_pointer_press() && !drag.close_tab)
-                {
-                    drag.tab          = tab;
-                    drag.source_group = group;
-                    drag.press_point  = ui_pointer_location();
-                    group->active_tab = tab;
-                    is_active         = true;
-                }
+                /* Press handling (close / drag-start / activation) is resolved in
+                   the pre-pass above so the whole bar renders a single, settled
+                   selection this frame. */
 
                 /* Left insert indicator */
                 if (is_insert_target && drag.insert_index == i)

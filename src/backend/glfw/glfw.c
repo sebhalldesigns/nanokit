@@ -196,7 +196,12 @@ int backend_run(nk_run_info_t *info, int argc, char **argv)
 
         glDisable(GL_SCISSOR_TEST);
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        /* Clear the stencil too — NanoVG's NVG_STENCIL_STROKES path draws each
+           stroke base only where stencil == 0, so stale/garbage stencil (e.g.
+           freshly reallocated regions after a resize) masks out parts of border
+           strokes and they render dashed. */
+        glStencilMask(0xFF);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
         ui_context_render_info_t render_info = {
             .width = (float)data->width,

@@ -200,7 +200,8 @@ typedef struct nk_view_t
 typedef enum
 {
     NK_TEXT_NORMAL,
-    NK_TEXT_BOLD
+    NK_TEXT_BOLD,
+    NK_TEXT_ICON   /* glyphs from the embedded icon font (Bootstrap Icons) */
 } nk_text_variant_t;
 
 typedef struct
@@ -251,6 +252,17 @@ typedef struct
        spacers reserving the off-screen height. Requires uniform item_height. */
     bool virtualize;
     float item_height;
+
+    /* Last-known-good scroll geometry. Clay_GetScrollContainerData is queried
+       mid-layout and can momentarily report "not found" (its result hinges on a
+       transient layout-arena slot that shifts when elements above the view
+       change, e.g. on hover). Without a cache that collapses the virtual window
+       to the fallback viewport and toggles the scrollbars — a visible flicker.
+       Reusing these values on such frames keeps the view stable. */
+    float geom_viewport_w, geom_viewport_h;
+    float geom_content_w, geom_content_h;
+    float geom_scroll_x, geom_scroll_y;
+    bool  geom_valid;
 } nk_scroll_view_t;
 
 typedef struct nk_tree_item_t

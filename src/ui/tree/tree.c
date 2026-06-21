@@ -129,13 +129,15 @@ void tree_item_render(nk_view_t *view)
         {
             if (item->is_folder)
             {
-                /* ▾ U+25BE expanded, ▸ U+25B8 collapsed */
+                /* Bootstrap Icons: chevron-down U+F282 expanded, chevron-right
+                   U+F285 collapsed (UTF-8 encoded), drawn from the icon font. */
                 Clay_String chevron = item->is_expanded
-                    ? (Clay_String){ .chars = "\xE2\x96\xBE", .length = 3 }
-                    : (Clay_String){ .chars = "\xE2\x96\xB8", .length = 3 };
+                    ? (Clay_String){ .chars = "\xEF\x8A\x82", .length = 3 }
+                    : (Clay_String){ .chars = "\xEF\x8A\x85", .length = 3 };
 
                 CLAY_TEXT(chevron, CLAY_TEXT_CONFIG({
                     .fontSize  = (uint16_t)item->text_info.size,
+                    .fontId    = NK_TEXT_ICON,
                     .textColor = nk_to_clay_color(resource_get_dynamic_color(NKRES_COLOR_TEXT_SECONDARY)),
                 }));
             }

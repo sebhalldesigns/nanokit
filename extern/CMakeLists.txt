@@ -14,7 +14,13 @@ set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
 set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
 set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
 set(FT_DISABLE_ZLIB ON CACHE BOOL "" FORCE)
-set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
+# Brotli powers WOFF2 decompression (needed to load the embedded .woff2 icon
+# font). FreeType gates its whole Brotli search behind `NOT FT_DISABLE_BROTLI`,
+# so FT_REQUIRE_BROTLI alone does nothing while FT_DISABLE_BROTLI is ON — it must
+# be forced OFF here, otherwise FT_CONFIG_OPTION_USE_BROTLI is never defined and
+# FT_New_Memory_Face rejects the woff2.
+set(FT_DISABLE_BROTLI OFF CACHE BOOL "" FORCE)
+set(FT_REQUIRE_BROTLI ON CACHE BOOL "" FORCE)
 add_subdirectory(freetype)
 
 # NanoVG
@@ -35,10 +41,10 @@ target_link_libraries(nanovg PUBLIC
 )
 
 if (LINUX)
-    # GLFW
-    set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-    set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-    set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-    set(GLFW_BUILD_WAYLAND ON CACHE BOOL "" FORCE)
-    add_subdirectory(glfw)
+  # GLFW
+  set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+  set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+  set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+  set(GLFW_BUILD_WAYLAND ON CACHE BOOL "" FORCE)
+  add_subdirectory(glfw)
 endif()

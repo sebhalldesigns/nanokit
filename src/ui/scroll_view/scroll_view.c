@@ -77,6 +77,8 @@ void nk_scroll_view_init(nk_scroll_view_t *scroll_view)
 
     scroll_view->virtualize = false;
     scroll_view->item_height = 0.0f;
+
+    scroll_view->geom_valid = false;
 }
 
 void scroll_view_render(nk_view_t *view)
@@ -94,16 +96,50 @@ void scroll_view_render(nk_view_t *view)
 
     Clay_ElementData box = Clay_GetElementData(clay_id);
 
-    float viewport_h = have_geometry ? scroll_data.scrollContainerDimensions.height
-                                     : VIRTUAL_FALLBACK_VIEWPORT;
-    float viewport_w = have_geometry ? scroll_data.scrollContainerDimensions.width : 0.0f;
-    float content_h = have_geometry ? scroll_data.contentDimensions.height : 0.0f;
-    float content_w = have_geometry ? scroll_data.contentDimensions.width : 0.0f;
-    float scroll_y = have_geometry ? -scroll_data.scrollPosition->y : 0.0f;
-    float scroll_x = have_geometry ? -scroll_data.scrollPosition->x : 0.0f;
+    /* Resolve the geometry that drives virtualisation and the scrollbars. When
+       the query succeeds, cache it; when it momentarily fails (see geom_valid in
+       the struct) reuse the cache so the view doesn't flicker; only the genuine
+       first frame, before any geometry exists, uses the generous fallback. */
+    float viewport_h, viewport_w, content_h, content_w, scroll_y, scroll_x;
 
-    bool show_vbar = have_geometry && content_h > viewport_h + 0.5f;
-    bool show_hbar = have_geometry && content_w > viewport_w + 0.5f;
+    if (have_geometry)
+    {
+        viewport_h = scroll_data.scrollContainerDimensions.height;
+        viewport_w = scroll_data.scrollContainerDimensions.width;
+        content_h  = scroll_data.contentDimensions.height;
+        content_w  = scroll_data.contentDimensions.width;
+        scroll_y   = -scroll_data.scrollPosition->y;
+        scroll_x   = -scroll_data.scrollPosition->x;
+
+        scroll_view->geom_viewport_h = viewport_h;
+        scroll_view->geom_viewport_w = viewport_w;
+        scroll_view->geom_content_h  = content_h;
+        scroll_view->geom_content_w  = content_w;
+        scroll_view->geom_scroll_y   = scroll_y;
+        scroll_view->geom_scroll_x   = scroll_x;
+        scroll_view->geom_valid      = true;
+    }
+    else if (scroll_view->geom_valid)
+    {
+        viewport_h = scroll_view->geom_viewport_h;
+        viewport_w = scroll_view->geom_viewport_w;
+        content_h  = scroll_view->geom_content_h;
+        content_w  = scroll_view->geom_content_w;
+        scroll_y   = scroll_view->geom_scroll_y;
+        scroll_x   = scroll_view->geom_scroll_x;
+    }
+    else
+    {
+        viewport_h = VIRTUAL_FALLBACK_VIEWPORT;
+        viewport_w = 0.0f;
+        content_h  = 0.0f;
+        content_w  = 0.0f;
+        scroll_y   = 0.0f;
+        scroll_x   = 0.0f;
+    }
+
+    bool show_vbar = content_h > viewport_h + 0.5f;
+    bool show_hbar = content_w > viewport_w + 0.5f;
 
     float max_scroll_y = content_h - viewport_h;
     float max_scroll_x = content_w - viewport_w;

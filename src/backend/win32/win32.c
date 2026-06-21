@@ -652,7 +652,19 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
 
                 glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
-                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                /* The stencil buffer MUST be cleared every frame: NanoVG is
+                   created with NVG_STENCIL_STROKES, so each border stroke draws
+                   its base only where stencil == 0 and then zeroes it back. That
+                   self-cleanup hides stale values in steady state, but on resize
+                   the GL stencil attachment is reallocated with undefined
+                   contents, so freshly exposed regions hold garbage that masks
+                   out parts of the stroke — the tab borders render dashed until a
+                   later redraw re-zeroes those pixels. Clearing here keeps every
+                   frame correct. glStencilMask is forced open first because
+                   NanoVG may leave the mask in any state. */
+                glStencilMask(0xFF);
+
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
                 active_window = (nk_window_t *)window;
 
@@ -728,6 +740,21 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
                 data->pointer_down = false;
             }
             ReleaseCapture();
+            InvalidateRect(window, NULL, FALSE);
+            return 0;
+
+        case WM_CAPTURECHANGED:
+            /* Mouse capture was taken away by another window — most commonly a
+             * native modal dialog (open file / folder) shown while the button
+             * is still held. In that case the matching WM_LBUTTONUP is
+             * delivered to the dialog, never to us, leaving pointer_down stuck
+             * true. The next click then fails to register as a fresh press, so
+             * the user has to click twice. Clearing the state here keeps the
+             * press/release edges consistent regardless of who stole capture. */
+            if (data)
+            {
+                data->pointer_down = false;
+            }
             InvalidateRect(window, NULL, FALSE);
             return 0;
 

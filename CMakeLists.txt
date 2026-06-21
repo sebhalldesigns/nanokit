@@ -106,3 +106,7 @@ function(embed_resources target)
     target_sources(${target} PRIVATE ${src_path} ${dst_path} )
   endforeach()
 endfunction()
+
+embed_resources(nanokit
+  resources/fonts/bootstrap-icons.woff2
+)

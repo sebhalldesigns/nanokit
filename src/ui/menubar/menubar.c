@@ -48,6 +48,7 @@ void nk_menubar_init(nk_menubar_t *menubar, nk_menubar_create_info_t *create_inf
 {
 
     menubar->view.type = NK_MENUBAR;
+    menubar->view.id = ui_id_from_fmt("menubar:%p", (void *)menubar);
     menubar->view.direction = NK_DIRECTION_HORIZONTAL;
     menubar->view.align_y = NK_ALIGN_CENTER;
     menubar->view.gap = 5;
@@ -95,7 +96,41 @@ void menubar_render(nk_view_t *view)
         }
      }
 
+     /* While a menu is open the menubar owns input: a transparent, full-window
+      * scrim sits above all content (but below the popups) and captures every
+      * pointer event — hover, click and scroll — so nothing underneath reacts.
+      * The strip occupied by the menubar itself is left uncovered so the menu
+      * headers stay live for hover-to-switch and click-to-close. This is a
+      * general modal layer, not tied to any particular widget beneath it. */
+     if (menubar->is_open)
+     {
+         Clay_ElementData bar = Clay_GetElementData((Clay_ElementId){ .id = view->id });
+         float bar_bottom = bar.found ? bar.boundingBox.y + bar.boundingBox.height : 0.0f;
+         nk_point_t win = ui_window_size();
+
+         CLAY({
+             .id = CLAY_ID("menubar_scrim"),
+             .floating = {
+                 .attachTo = CLAY_ATTACH_TO_ROOT,
+                 .attachPoints = {
+                     .element = CLAY_ATTACH_POINT_LEFT_TOP,
+                     .parent  = CLAY_ATTACH_POINT_LEFT_TOP
+                 },
+                 .offset = { .x = 0.0f, .y = bar_bottom },
+                 .zIndex = 90,
+                 .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_CAPTURE
+             },
+             .layout = {
+                 .sizing = {
+                     .width  = CLAY_SIZING_FIXED(win.x),
+                     .height = CLAY_SIZING_FIXED(win.y - bar_bottom)
+                 }
+             }
+         }) {}
+     }
+
      CLAY({
+         .id = { .id = view->id },
          .layout = {
              .sizing = {
                  .width = nk_to_clay_sizing(view->width),

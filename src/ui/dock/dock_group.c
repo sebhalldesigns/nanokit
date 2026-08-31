@@ -17,6 +17,7 @@
 
 #include "ui/view/view.h"
 #include "ui/dock/dock_node.h"
+#include "ui/dock/dock.h"
 #include <nanokit.h>
 #include <backend/backend.h>
 
@@ -115,6 +116,8 @@ static void group_add_tab(nk_dock_group_t *group, nk_dock_tab_t *tab, int index)
     }
     tab->dock_group = (struct nk_dock_group_t *)group;
     group->active_tab = tab;
+
+    dock_note_focus(group);
 }
 
 static node_split_direction_t drag_dir_to_split(dock_drag_dir_t dir)
@@ -238,7 +241,7 @@ static void execute_drop(void)
 
     if (drag.event_type == DRAG_DROP)
     {
-        if (src == dst) { dst->active_tab = tab; return; }
+        if (src == dst) { dst->active_tab = tab; dock_note_focus(dst); return; }
         nk_dock_node_t *src_node = (nk_dock_node_t *)src->node;
         group_remove_tab(src, tab);
         maybe_collapse_empty_node(src_node);
@@ -436,6 +439,14 @@ void dock_group_render(nk_view_t *view)
         }
     }
 
+    /* Clicking anywhere in a pane — its body, not just its tab — is what makes
+       it the pane the user is working in, and so where the next opened tab
+       goes. Uses last frame's geometry, same as the tab hit-testing below. */
+    if (ui_pointer_press() && Clay_PointerOver(content_id))
+    {
+        dock_note_focus(group);
+    }
+
     /* Tab interaction pre-pass — resolve close-press and tab activation/drag-
        start BEFORE the bar is laid out. Doing it inside the render loop made a
        newly-pressed tab to the right of the old active one appear alongside it
@@ -472,6 +483,8 @@ void dock_group_render(nk_view_t *view)
                 drag.source_group = group;
                 drag.press_point  = ui_pointer_location();
                 group->active_tab = tab;
+
+                dock_note_focus(group);
             }
 
             tab_view = tab_view->next_sibling;

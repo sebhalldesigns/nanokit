@@ -237,9 +237,20 @@ bool dock_node_split(nk_dock_node_t *existing_node, nk_dock_node_t *node_list,
     new_a->content.group.tab_bar.id = ui_id_from_fmt("dock_group_tabbar:%p", &new_a->content.group);
     new_a->content.group.content.id = ui_id_from_fmt("dock_group_content:%p",&new_a->content.group);
 
-    /* fix tab parent pointers which still point into the old group's content */
+    /* fix tab parent and group back-pointers, which still reference the old
+       group — whose storage dock_node_init_split() is about to reuse as the
+       split's own fields, so anything left pointing at it writes into the
+       split. */
     nk_view_t *tv = new_a->content.group.content.first_child;
-    while (tv) { tv->parent = &new_a->content.group.content; tv = tv->next_sibling; }
+    while (tv)
+    {
+        nk_dock_tab_t *tab = (nk_dock_tab_t *)tv;
+
+        tv->parent      = &new_a->content.group.content;
+        tab->dock_group = (struct nk_dock_group_t *)&new_a->content.group;
+
+        tv = tv->next_sibling;
+    }
 
     /* clear position pointers — nk_view_add_child will rewire them */
     new_a->view.parent       = NULL;

@@ -43,6 +43,11 @@
 ** MARK: CONSTANTS & MACROS
 ***************************************************************/
 
+/* Pixels of scroll per unit of GLFW scroll offset — one wheel notch reports
+   1.0. Matches the step the win32 backend derives from WHEEL_DELTA, so both
+   platforms travel the same distance per notch. */
+#define SCROLL_STEP (5.0f)
+
 
 /***************************************************************
 ** MARK: TYPEDEFS
@@ -55,6 +60,13 @@ typedef struct {
     int pointer_x;
     int pointer_y;
     bool pointer_down;
+
+    /* Wheel/trackpad movement accumulated since the last frame. GLFW can
+       deliver several scroll events between frames — a trackpad especially —
+       so they are summed here and consumed once per render. */
+    float scroll_delta_x;
+    float scroll_delta_y;
+
     ui_context_t view_context;
     nk_view_t *root_view;
 
@@ -237,10 +249,17 @@ int backend_run(nk_run_info_t *info, int argc, char **argv)
             .dark_mode = true,
             .pointer_x = (float)data->pointer_x,
             .pointer_y = (float)data->pointer_y,
-            .mouse_down = data->pointer_down
+            .mouse_down = data->pointer_down,
+            .scroll_delta_x = data->scroll_delta_x,
+            .scroll_delta_y = data->scroll_delta_y,
+            .time_micros = (size_t)(glfwGetTime() * 1000000.0)
         };
 
         ui_context_render(&data->view_context, data->root_view, &render_info);
+
+        /* Consumed — a delta must move the view exactly once. */
+        data->scroll_delta_x = 0.0f;
+        data->scroll_delta_y = 0.0f;
 
         glfwSwapBuffers(single_window);
 
@@ -370,7 +389,13 @@ static void on_mouse_button(GLFWwindow *w, int button, int action, int mods)
 
 static void on_scroll(GLFWwindow *w, double dx, double dy)
 {
-    /* todo */
+    glfw_window_data_t *data = glfwGetWindowUserPointer(w);
+
+    /* GLFW reports positive y when scrolling away from the user, which is the
+       same sense Clay wants, and fractional values for smooth trackpad
+       scrolling — so this passes straight through. */
+    data->scroll_delta_x += (float)dx * SCROLL_STEP;
+    data->scroll_delta_y += (float)dy * SCROLL_STEP;
 }
 
 

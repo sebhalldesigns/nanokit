@@ -75,6 +75,116 @@ static nk_dock_node_t *find_first_leaf(nk_dock_node_t *nodes, size_t count)
     return NULL;
 }
 
+static nk_dock_node_t *location_pool(nk_dock_t *dock,
+    nk_dock_tab_location_t location, size_t *count)
+{
+    switch (location)
+    {
+        case DOCK_TAB_LEFT_AREA:
+        {
+            *count = NK_DOCK_NODES_PER_SIDE_AREA;
+            return dock->left_nodes;
+        }
+
+        case DOCK_TAB_RIGHT_AREA:
+        {
+            *count = NK_DOCK_NODES_PER_SIDE_AREA;
+            return dock->right_nodes;
+        }
+
+        case DOCK_TAB_BOTTOM_AREA:
+        {
+            *count = NK_DOCK_NODES_PER_SIDE_AREA;
+            return dock->bottom_nodes;
+        }
+
+        case DOCK_TAB_MAIN_AREA:
+        {
+            *count = NK_DOCK_NODES_PER_MAIN_AREA;
+            return dock->main_nodes;
+        }
+    }
+
+    *count = 0;
+    return NULL;
+}
+
+/* Which area a node's pool slot belongs to. */
+static bool node_location(nk_dock_t *dock, const nk_dock_node_t *node,
+    nk_dock_tab_location_t *location)
+{
+    for (size_t i = 0; i < NK_DOCK_TAB_LOCATION_COUNT; i++)
+    {
+        nk_dock_tab_location_t candidate = (nk_dock_tab_location_t)i;
+
+        size_t count = 0;
+        nk_dock_node_t *pool = location_pool(dock, candidate, &count);
+
+        if (pool && node >= pool && node < pool + count)
+        {
+            *location = candidate;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/* The remembered group for an area, but only if it is still a live leaf there.
+   Splits and collapses retire groups without telling anyone, so the pointer is
+   confirmed against the pool rather than trusted. */
+static nk_dock_group_t *recent_live_group(nk_dock_t *dock,
+    nk_dock_tab_location_t location)
+{
+    nk_dock_group_t *group = (nk_dock_group_t *)dock->recent_groups[location];
+
+    if (!group)
+    {
+        return NULL;
+    }
+
+    size_t count = 0;
+    nk_dock_node_t *pool = location_pool(dock, location, &count);
+
+    for (size_t i = 0; i < count; i++)
+    {
+        if (pool[i].active
+            && pool[i].node_type == NK_DOCK_NODE_TYPE_LEAF
+            && &pool[i].content.group == group)
+        {
+            return group;
+        }
+    }
+
+    return NULL;
+}
+
+void dock_note_focus(nk_dock_group_t *group)
+{
+    if (!group || !group->node)
+    {
+        return;
+    }
+
+    nk_dock_node_t *node = (nk_dock_node_t *)group->node;
+
+    if (!node->dock)
+    {
+        return;
+    }
+
+    nk_dock_t *dock = (nk_dock_t *)node->dock;
+
+    nk_dock_tab_location_t location;
+
+    if (!node_location(dock, node, &location))
+    {
+        return;
+    }
+
+    dock->recent_groups[location] = (struct nk_dock_group_t *)group;
+}
+
 void nk_dock_init(nk_dock_t *dock)
 {
     /* Node pools must start fully inactive — slot reuse keys off `active`, and
@@ -83,6 +193,7 @@ void nk_dock_init(nk_dock_t *dock)
     memset(dock->right_nodes,  0, sizeof(dock->right_nodes));
     memset(dock->bottom_nodes, 0, sizeof(dock->bottom_nodes));
     memset(dock->main_nodes,   0, sizeof(dock->main_nodes));
+    memset(dock->recent_groups, 0, sizeof(dock->recent_groups));
 
     dock->view.type = NK_DOCK;
     dock->view.direction = NK_DIRECTION_HORIZONTAL;
@@ -136,34 +247,21 @@ void nk_dock_init(nk_dock_t *dock)
 
 void nk_dock_add_tab(nk_dock_t *dock, nk_dock_tab_t *tab, nk_dock_tab_location_t location)
 {
-    nk_dock_node_t *node = NULL;
+    /* Land the tab where the user last worked in this area, so opening a file
+       while a split pane is focused puts it in that pane. */
+    nk_dock_group_t *group = recent_live_group(dock, location);
 
-    switch (location)
+    if (!group)
     {
-        case DOCK_TAB_LEFT_AREA:
-        {
-            node = find_first_leaf(dock->left_nodes, NK_DOCK_NODES_PER_SIDE_AREA);
-        } break;
+        size_t count = 0;
+        nk_dock_node_t *pool = location_pool(dock, location, &count);
+        nk_dock_node_t *node = pool ? find_first_leaf(pool, count) : NULL;
 
-        case DOCK_TAB_RIGHT_AREA:
-        {
-            node = find_first_leaf(dock->right_nodes, NK_DOCK_NODES_PER_SIDE_AREA);
-        } break;
+        if (!node) { return; }
 
-        case DOCK_TAB_BOTTOM_AREA:
-        {
-            node = find_first_leaf(dock->bottom_nodes, NK_DOCK_NODES_PER_SIDE_AREA);
-        } break;
-
-        case DOCK_TAB_MAIN_AREA:
-        {
-            node = find_first_leaf(dock->main_nodes, NK_DOCK_NODES_PER_MAIN_AREA);
-        } break;
+        group = &node->content.group;
     }
 
-    if (!node) { return; }
-
-    nk_dock_group_t *group = &node->content.group;
     tab->dock_group = (struct nk_dock_group_t *)group;
     tab->view.id = ui_id_from_fmt("dock_tab_btn:%p", tab);
 
@@ -173,6 +271,66 @@ void nk_dock_add_tab(nk_dock_t *dock, nk_dock_tab_t *tab, nk_dock_tab_location_t
     {
         group->active_tab = tab;
     }
+
+    dock_note_focus(group);
+}
+
+/* Resolve the group a tab currently sits in from its position in the view
+   tree. A docked tab is always a child of its group's content view, and that
+   link is rewired everywhere a tab moves — including the group copy a split
+   performs — which the tab's own dock_group back-pointer historically was not.
+   Deriving it keeps focus working no matter how the tab got where it is. */
+static nk_dock_group_t *group_of_tab(const nk_dock_tab_t *tab)
+{
+    if (!tab || !tab->view.parent)
+    {
+        return NULL;
+    }
+
+    return (nk_dock_group_t *)((char *)tab->view.parent
+                               - offsetof(nk_dock_group_t, content));
+}
+
+void nk_dock_focus_tab(nk_dock_tab_t *tab)
+{
+    nk_dock_group_t *group = group_of_tab(tab);
+
+    if (!group)
+    {
+        return;
+    }
+
+    group->active_tab = tab;
+
+    dock_note_focus(group);
+}
+
+void nk_dock_close_tab(nk_dock_tab_t *tab)
+{
+    if (!tab || !tab->view.parent)
+    {
+        return;
+    }
+
+    nk_dock_group_t *group = group_of_tab(tab);
+
+    nk_dock_tab_t *prev = (nk_dock_tab_t *)tab->view.prev_sibling;
+    nk_dock_tab_t *next = (nk_dock_tab_t *)tab->view.next_sibling;
+
+    nk_view_remove(&tab->view);
+
+    /* The group must never be left pointing at a tab it no longer contains. */
+    if (group && group->active_tab == tab)
+    {
+        group->active_tab = next ? next : prev;
+    }
+}
+
+bool nk_dock_tab_is_open(const nk_dock_tab_t *tab)
+{
+    /* Closing a tab detaches its view from the group's content list, which is
+       the only trace a caller holding the tab can observe. */
+    return tab && tab->view.parent != NULL;
 }
 
 void dock_render(nk_view_t *view)

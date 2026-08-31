@@ -38,6 +38,10 @@ extern "C" {
 
 void dock_render(nk_view_t *view);
 
+/* Record `group` as the most recently focused one in its area, which is where
+   nk_dock_add_tab() will place the next tab for that area. */
+void dock_note_focus(nk_dock_group_t *group);
+
 
 
 #ifdef __cplusplus

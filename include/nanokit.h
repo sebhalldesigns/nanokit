@@ -54,6 +54,9 @@ extern "C" {
 #define NK_DOCK_NODES_PER_SIDE_AREA (16U)
 #define NK_DOCK_NODES_PER_MAIN_AREA (32U)
 
+/* Number of values in nk_dock_tab_location_t. */
+#define NK_DOCK_TAB_LOCATION_COUNT  (4U)
+
 /***************************************************************
 ** MARK: TYPEDEFS
 ***************************************************************/
@@ -242,6 +245,12 @@ typedef struct
 
     const char *text;
     nk_text_info_t text_info;
+
+    /* Break only on newlines rather than at word boundaries. Text then
+       overflows its container instead of reflowing, which is what a code or
+       log line wants — an enclosing scroll view turns that into horizontal
+       scrolling. */
+    bool no_wrap;
 } nk_label_t;
 
 typedef struct
@@ -423,6 +432,12 @@ typedef struct
 
     nk_view_t main_area;
     nk_dock_node_t main_nodes[NK_DOCK_NODES_PER_MAIN_AREA];
+
+    /* Group most recently focused in each area, indexed by
+       nk_dock_tab_location_t, and where nk_dock_add_tab() puts the next tab for
+       that area. Revalidated against the area's node pool on use, so a group
+       that has since been split away or collapsed is simply ignored. */
+    struct nk_dock_group_t *recent_groups[NK_DOCK_TAB_LOCATION_COUNT];
 } nk_dock_t;
 
 typedef struct
@@ -496,7 +511,22 @@ void nk_splitter_init_proportional(nk_splitter_t *splitter, float *target,
     nk_direction_t direction, bool reversed, float *reference);
 
 void nk_dock_init(nk_dock_t *dock);
+
+/* Dock `tab` into `location`, in whichever group of that area was focused most
+   recently. Falls back to the area's first group when there is no such group —
+   at startup, or after the remembered one has gone away. */
 void nk_dock_add_tab(nk_dock_t *dock, nk_dock_tab_t *tab, nk_dock_tab_location_t location);
+
+/* Make `tab` the visible tab of the group it belongs to. No-op for a tab that
+   is not currently docked. */
+void nk_dock_focus_tab(nk_dock_tab_t *tab);
+
+/* Undock `tab`, activating a neighbour in its place. Mirrors what the tab's
+   close button does, minus collapsing a group that becomes empty. */
+void nk_dock_close_tab(nk_dock_tab_t *tab);
+
+/* True while `tab` is docked — a tab the user has closed reports false. */
+bool nk_dock_tab_is_open(const nk_dock_tab_t *tab);
 
 #ifdef NANOKIT_MAIN
 

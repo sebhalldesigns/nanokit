@@ -57,6 +57,27 @@ void nk_menubar_init(nk_menubar_t *menubar, nk_menubar_create_info_t *create_inf
     {
         nk_menu_init(&create_info->menus[i], menubar);
         nk_view_add_child(&menubar->view, &create_info->menus[i].view);
+
+        /* An entry that advertises a shortcut should honour it, so the chord
+           printed beside the item is bound to the same command the item
+           dispatches. */
+        nk_menu_t *menu = &create_info->menus[i];
+
+        for (size_t j = 0; j < menu->entries_count; j++)
+        {
+            nk_menu_entry_t *entry = &menu->entries[j];
+
+            if (entry->is_separator || !entry->shortcut || !entry->command)
+            {
+                continue;
+            }
+
+            if (!nk_shortcut_register(entry->shortcut, entry->command))
+            {
+                fprintf(stderr, "nanokit: could not bind shortcut \"%s\" for %s\n",
+                        entry->shortcut, entry->command);
+            }
+        }
     }
 }
 

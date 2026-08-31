@@ -19,6 +19,8 @@
 #include <backend/backend.h>
 #include <resource/resource.h>
 #include <ui/ui.h>
+#include <ui/shortcut/shortcut.h>
+#include "backend/win32/win32_keymap.h"
 
 #include <string.h>
 #include <wchar.h>
@@ -780,7 +782,29 @@ static LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wparam, L
             return 0;
 
         case WM_KEYDOWN:
+        case WM_SYSKEYDOWN:
+        {
+            /* Bit 30 of lparam is the previous key state: set means this is an
+               auto-repeat. Shortcuts fire once per press, so holding a chord
+               does not stack up commands. */
+            bool repeat = (lparam & (1 << 30)) != 0;
+
+            if (!repeat)
+            {
+                nk_key_t key = win32_key_from_vk((unsigned int)wparam);
+
+                if (key != NK_KEY_UNKNOWN)
+                {
+                    shortcut_handle_key(key, win32_modifiers());
+                }
+            }
+
+            InvalidateRect(window, NULL, FALSE);
+            return 0;
+        }
+
         case WM_KEYUP:
+        case WM_SYSKEYUP:
         {
 
             InvalidateRect(window, NULL, FALSE);

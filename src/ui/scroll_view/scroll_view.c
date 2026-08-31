@@ -79,6 +79,7 @@ void nk_scroll_view_init(nk_scroll_view_t *scroll_view)
     scroll_view->item_height = 0.0f;
 
     scroll_view->geom_valid = false;
+    scroll_view->geom_forced_min_w = 0.0f;
 }
 
 void scroll_view_render(nk_view_t *view)
@@ -138,8 +139,23 @@ void scroll_view_render(nk_view_t *view)
         scroll_x   = 0.0f;
     }
 
+    float padding_x = (float)(view->padding.left + view->padding.right);
+
+    /* Width the content column will be held to this frame, and the one it was
+       held to when the reported geometry was measured. The content column is
+       given a minimum of the viewport width so rows span the full panel, so a
+       frame after the panel narrows the reported content width is still the old,
+       wider minimum. That is not real overflow, so the horizontal bar only
+       appears once the content exceeds the minimum it was actually laid out
+       with — otherwise it flickers in for a frame on every collapse. */
+    float content_min_w = viewport_w - padding_x;
+    if (content_min_w < 0.0f) content_min_w = 0.0f;
+
     bool show_vbar = content_h > viewport_h + 0.5f;
-    bool show_hbar = content_w > viewport_w + 0.5f;
+    bool show_hbar = content_w > viewport_w + 0.5f
+                  && content_w > scroll_view->geom_forced_min_w + padding_x + 0.5f;
+
+    scroll_view->geom_forced_min_w = content_min_w;
 
     float max_scroll_y = content_h - viewport_h;
     float max_scroll_x = content_w - viewport_w;
@@ -252,11 +268,14 @@ void scroll_view_render(nk_view_t *view)
     {
         /* Content column — fits its widest row so rows can overflow the viewport
            horizontally (driving the horizontal bar), while each row still grows
-           to the column width so selection spans the full row. */
+           to the column width so selection spans the full row. The minimum
+           holds it to the viewport when the rows are narrower than the panel,
+           so a row's background and selection reach the full width instead of
+           stopping at the end of its text. */
         CLAY({
             .layout = {
                 .sizing = {
-                    .width  = CLAY_SIZING_FIT(0),
+                    .width  = CLAY_SIZING_FIT(.min = content_min_w),
                     .height = CLAY_SIZING_FIT(0)
                 },
                 .childGap = view->gap,

@@ -84,6 +84,69 @@ typedef enum
     NKRES_SIZE_SCROLLBAR_THICKNESS
 } nk_resource_t;
 
+/* Physical keys. Printable keys use their uppercase ASCII code, so NK_KEY_A is
+   'A' and NK_KEY_COMMA is ','; named keys sit above the ASCII range. The key
+   identifies the position on the keyboard, not the character it produces — so
+   a binding works the same whatever the layout or shift state. */
+typedef enum
+{
+    NK_KEY_UNKNOWN       = 0,
+
+    NK_KEY_SPACE         = 32,
+    NK_KEY_APOSTROPHE    = 39,
+    NK_KEY_COMMA         = 44,
+    NK_KEY_MINUS         = 45,
+    NK_KEY_PERIOD        = 46,
+    NK_KEY_SLASH         = 47,
+
+    NK_KEY_0             = 48,
+    NK_KEY_9             = 57,
+
+    NK_KEY_SEMICOLON     = 59,
+    NK_KEY_EQUAL         = 61,
+
+    NK_KEY_A             = 65,
+    NK_KEY_Z             = 90,
+
+    NK_KEY_LEFT_BRACKET  = 91,
+    NK_KEY_BACKSLASH     = 92,
+    NK_KEY_RIGHT_BRACKET = 93,
+    NK_KEY_GRAVE         = 96,
+
+    NK_KEY_ESCAPE        = 256,
+    NK_KEY_ENTER         = 257,
+    NK_KEY_TAB           = 258,
+    NK_KEY_BACKSPACE     = 259,
+    NK_KEY_INSERT        = 260,
+    NK_KEY_DELETE        = 261,
+    NK_KEY_RIGHT         = 262,
+    NK_KEY_LEFT          = 263,
+    NK_KEY_DOWN          = 264,
+    NK_KEY_UP            = 265,
+    NK_KEY_PAGE_UP       = 266,
+    NK_KEY_PAGE_DOWN     = 267,
+    NK_KEY_HOME          = 268,
+    NK_KEY_END           = 269,
+
+    NK_KEY_F1            = 290,
+    NK_KEY_F12           = 301
+} nk_key_t;
+
+typedef enum
+{
+    NK_MOD_NONE  = 0,
+    NK_MOD_CTRL  = 1 << 0,
+    NK_MOD_SHIFT = 1 << 1,
+    NK_MOD_ALT   = 1 << 2,
+    NK_MOD_SUPER = 1 << 3
+} nk_modifier_t;
+
+typedef struct
+{
+    uint32_t key;       /* an nk_key_t */
+    uint32_t modifiers; /* bitmask of nk_modifier_t */
+} nk_shortcut_t;
+
 typedef enum
 {
     NK_CURSOR_ARROW,
@@ -272,6 +335,13 @@ typedef struct
     float geom_content_w, geom_content_h;
     float geom_scroll_x, geom_scroll_y;
     bool  geom_valid;
+
+    /* Width the content column was forced to hold last frame (see the FIT(.min)
+       in scroll_view_render). Clay reports content dimensions one frame late, so
+       while a pane is being narrowed the reported width is still the previous,
+       wider minimum — overflow that does not exist. Remembering the forced
+       minimum lets the horizontal bar ignore it. */
+    float geom_forced_min_w;
 } nk_scroll_view_t;
 
 typedef struct nk_tree_item_t
@@ -433,6 +503,13 @@ typedef struct
     nk_view_t main_area;
     nk_dock_node_t main_nodes[NK_DOCK_NODES_PER_MAIN_AREA];
 
+    /* Whether each side area is shown. The main area is always present, so it
+       has no flag. Hiding an area detaches it and its splitter from the view
+       tree; the tabs it holds are untouched and return with it. */
+    bool left_visible;
+    bool right_visible;
+    bool bottom_visible;
+
     /* Group most recently focused in each area, indexed by
        nk_dock_tab_location_t, and where nk_dock_add_tab() puts the next tab for
        that area. Revalidated against the area's node pool on use, so a group
@@ -456,6 +533,13 @@ typedef struct
 
     nk_label_t brand_label;
     nk_menubar_t menubar;
+
+    /* Eats the space between the menubar and the toggles, pinning them to the
+       right edge of the titlebar. */
+    nk_view_t titlebar_spacer;
+
+    /* Left, bottom and right dock area toggles, in that visual order. */
+    nk_button_t area_toggles[3];
 
 } nk_workbench_t;
 
@@ -484,6 +568,25 @@ int nk_run(nk_run_info_t *info, int argc, char **argv);
 
 void nk_io_open_files(bool single_file, nk_file_callback_t callback);
 void nk_io_open_directory(nk_directory_callback_t callback);
+
+/* Parse a chord such as "Ctrl-Shift-O", "Alt-F4" or "Ctrl-,". Modifier names
+   (ctrl/control, shift, alt/option, cmd/command/super/meta/win) are
+   case-insensitive and may be joined with '-' or '+'. Returns false, leaving
+   `shortcut` untouched, if the text names no key this build knows. */
+bool nk_shortcut_parse(const char *text, nk_shortcut_t *shortcut);
+
+/* Bind a chord to a command, delivered through the run info's
+   command_callback exactly as a menu item would deliver it. Binding a chord
+   that is already bound replaces its command. `command` is stored by pointer
+   and must outlive the binding — a string literal, as menu entries use.
+   Returns false if the chord is unparseable or the table is full.
+
+   Menu entries with both a shortcut and a command are registered
+   automatically by nk_menubar_init(), so most callers never need this. */
+bool nk_shortcut_register(const char *text, const char *command);
+
+/* Remove a binding. Unbinding a chord that is not bound does nothing. */
+void nk_shortcut_unregister(const char *text);
 
 bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window);
 void nk_window_set_cursor(nk_window_t *window, nk_cursor_t cursor);
@@ -520,6 +623,16 @@ void nk_dock_add_tab(nk_dock_t *dock, nk_dock_tab_t *tab, nk_dock_tab_location_t
 /* Make `tab` the visible tab of the group it belongs to. No-op for a tab that
    is not currently docked. */
 void nk_dock_focus_tab(nk_dock_tab_t *tab);
+
+/* Show or hide one of the dock's side areas. DOCK_TAB_MAIN_AREA is ignored —
+   the main area cannot be hidden. Tabs in a hidden area keep their contents
+   and reappear with it. */
+void nk_dock_set_area_visible(nk_dock_t *dock, nk_dock_tab_location_t area, bool visible);
+
+/* Flip an area's visibility. Returns the new state. */
+bool nk_dock_toggle_area(nk_dock_t *dock, nk_dock_tab_location_t area);
+
+bool nk_dock_is_area_visible(const nk_dock_t *dock, nk_dock_tab_location_t area);
 
 /* Undock `tab`, activating a neighbour in its place. Mirrors what the tab's
    close button does, minus collapsing a group that becomes empty. */

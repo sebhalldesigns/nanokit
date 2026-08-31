@@ -66,6 +66,7 @@ add_library(nanokit STATIC
     src/ui/scroll_view/scroll_view.c
     src/ui/tree/tree.c
     src/ui/menubar/menubar.c
+    src/ui/shortcut/shortcut.c
     src/ui/menubar/menu.c
     src/ui/splitter/splitter.c
     src/ui/dock/dock.c

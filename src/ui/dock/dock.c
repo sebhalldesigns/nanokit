@@ -46,6 +46,8 @@
 ** MARK: STATIC FUNCTION DEFS
 ***************************************************************/
 
+static void apply_area_visibility(nk_dock_t *dock);
+
 /***************************************************************
 ** MARK: PUBLIC FUNCTIONS
 ***************************************************************/
@@ -211,12 +213,6 @@ void nk_dock_init(nk_dock_t *dock)
     dock->right_area.width.type = NK_SIZING_FIXED;
     dock->right_area.width.value = 250;
 
-    nk_view_add_child(&dock->view, &dock->left_area);
-    nk_view_add_child(&dock->view, &dock->left_splitter.view);
-    nk_view_add_child(&dock->view, &dock->central_area);
-    nk_view_add_child(&dock->view, &dock->right_splitter.view);
-    nk_view_add_child(&dock->view, &dock->right_area);
-
     dock->central_area.direction = NK_DIRECTION_VERTICAL;
 
     nk_splitter_init(&dock->bottom_splitter, &dock->bottom_area.height.value, NK_DIRECTION_VERTICAL, true);
@@ -226,9 +222,11 @@ void nk_dock_init(nk_dock_t *dock)
     dock->bottom_area.height.type = NK_SIZING_FIXED;
     dock->bottom_area.height.value = 250;
 
-    nk_view_add_child(&dock->central_area, &dock->main_area);
-    nk_view_add_child(&dock->central_area, &dock->bottom_splitter.view);
-    nk_view_add_child(&dock->central_area, &dock->bottom_area);
+    dock->left_visible = true;
+    dock->right_visible = true;
+    dock->bottom_visible = true;
+
+    apply_area_visibility(dock);
 
     dock_node_init_group(&dock->left_nodes[0]);
     nk_view_add_child(&dock->left_area, &dock->left_nodes[0].view);
@@ -243,6 +241,82 @@ void nk_dock_init(nk_dock_t *dock)
     set_dock_backpointers(dock->right_nodes,  NK_DOCK_NODES_PER_SIDE_AREA, dock);
     set_dock_backpointers(dock->bottom_nodes, NK_DOCK_NODES_PER_SIDE_AREA, dock);
     set_dock_backpointers(dock->main_nodes,   NK_DOCK_NODES_PER_MAIN_AREA, dock);
+}
+
+/* Rebuild the dock's child lists in canonical order from the visibility flags.
+   Rebuilding beats splicing a view back into the slot it came from: the order
+   of these children *is* the layout, and there is no position left to restore
+   once a view has been detached. */
+static void apply_area_visibility(nk_dock_t *dock)
+{
+    nk_view_remove(&dock->left_area);
+    nk_view_remove(&dock->left_splitter.view);
+    nk_view_remove(&dock->central_area);
+    nk_view_remove(&dock->right_splitter.view);
+    nk_view_remove(&dock->right_area);
+
+    if (dock->left_visible)
+    {
+        nk_view_add_child(&dock->view, &dock->left_area);
+        nk_view_add_child(&dock->view, &dock->left_splitter.view);
+    }
+
+    nk_view_add_child(&dock->view, &dock->central_area);
+
+    if (dock->right_visible)
+    {
+        nk_view_add_child(&dock->view, &dock->right_splitter.view);
+        nk_view_add_child(&dock->view, &dock->right_area);
+    }
+
+    nk_view_remove(&dock->main_area);
+    nk_view_remove(&dock->bottom_splitter.view);
+    nk_view_remove(&dock->bottom_area);
+
+    nk_view_add_child(&dock->central_area, &dock->main_area);
+
+    if (dock->bottom_visible)
+    {
+        nk_view_add_child(&dock->central_area, &dock->bottom_splitter.view);
+        nk_view_add_child(&dock->central_area, &dock->bottom_area);
+    }
+}
+
+void nk_dock_set_area_visible(nk_dock_t *dock, nk_dock_tab_location_t area, bool visible)
+{
+    switch (area)
+    {
+        case DOCK_TAB_LEFT_AREA:   { dock->left_visible = visible;   } break;
+        case DOCK_TAB_RIGHT_AREA:  { dock->right_visible = visible;  } break;
+        case DOCK_TAB_BOTTOM_AREA: { dock->bottom_visible = visible; } break;
+
+        /* The main area is the dock's reason to exist. */
+        case DOCK_TAB_MAIN_AREA:   { return; }
+    }
+
+    apply_area_visibility(dock);
+}
+
+bool nk_dock_is_area_visible(const nk_dock_t *dock, nk_dock_tab_location_t area)
+{
+    switch (area)
+    {
+        case DOCK_TAB_LEFT_AREA:   { return dock->left_visible;   }
+        case DOCK_TAB_RIGHT_AREA:  { return dock->right_visible;  }
+        case DOCK_TAB_BOTTOM_AREA: { return dock->bottom_visible; }
+        case DOCK_TAB_MAIN_AREA:   { return true; }
+    }
+
+    return false;
+}
+
+bool nk_dock_toggle_area(nk_dock_t *dock, nk_dock_tab_location_t area)
+{
+    bool visible = !nk_dock_is_area_visible(dock, area);
+
+    nk_dock_set_area_visible(dock, area, visible);
+
+    return nk_dock_is_area_visible(dock, area);
 }
 
 void nk_dock_add_tab(nk_dock_t *dock, nk_dock_tab_t *tab, nk_dock_tab_location_t location)

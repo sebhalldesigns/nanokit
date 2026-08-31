@@ -121,6 +121,7 @@ void button_render(nk_view_t *view)
         CLAY_TEXT(btn_str, CLAY_TEXT_CONFIG({
             .fontSize = (uint16_t)btn->text_info.size,
             .textColor = nk_to_clay_color(resource_get_dynamic_color(btn->text_info.color_resource)),
+            .fontId = btn->text_info.variant
         }));
 
         if (btn->secondary_text)
@@ -133,6 +134,7 @@ void button_render(nk_view_t *view)
             CLAY_TEXT(btn_str, CLAY_TEXT_CONFIG({
                 .fontSize = (uint16_t)btn->secondary_text_info.size,
                 .textColor = nk_to_clay_color(resource_get_dynamic_color(btn->secondary_text_info.color_resource)),
+                .fontId = btn->secondary_text_info.variant
             }));
         }
     }

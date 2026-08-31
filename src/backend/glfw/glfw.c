@@ -22,6 +22,7 @@
 
 #include <nanokit.h>
 #include <ui/ui.h>
+#include <ui/shortcut/shortcut.h>
 
 
 #include <fontconfig/fontconfig.h>
@@ -104,6 +105,7 @@ static void on_framebuffer_size(GLFWwindow *w, int width, int height);
 static void on_cursor_pos(GLFWwindow *w, double x, double y);
 static void on_mouse_button(GLFWwindow *w, int button, int action, int mods);
 static void on_scroll(GLFWwindow *w, double dx, double dy);
+static void on_key(GLFWwindow *w, int key, int scancode, int action, int mods);
 
 static void open_files(bool single, nk_file_callback_t callback);
 static void open_directory(nk_directory_callback_t callback);
@@ -193,6 +195,7 @@ bool nk_window_create(nk_window_create_info_t *info, nk_window_t *window)
     glfwSetCursorPosCallback(glfw_window, on_cursor_pos);
     glfwSetMouseButtonCallback(glfw_window, on_mouse_button);
     glfwSetScrollCallback(glfw_window, on_scroll);
+    glfwSetKeyCallback(glfw_window, on_key);
 
     *window = (nk_window_t)glfw_window;
 
@@ -385,6 +388,39 @@ static void on_mouse_button(GLFWwindow *w, int button, int action, int mods)
     glfw_window_data_t *data = glfwGetWindowUserPointer(w);
     if (button == GLFW_MOUSE_BUTTON_LEFT)
         data->pointer_down = (action == GLFW_PRESS);
+}
+
+/* GLFW's key codes already use nanokit's scheme — printable keys carry their
+   uppercase ASCII code and named keys sit above it at the same values — so the
+   code passes through and only the modifier bits need translating. */
+static void on_key(GLFWwindow *w, int key, int scancode, int action, int mods)
+{
+    (void)scancode;
+
+    /* Shortcuts fire once per press. Auto-repeat is deliberately ignored:
+       holding Ctrl-Shift-O should not stack up file dialogs. */
+    if (action != GLFW_PRESS)
+    {
+        return;
+    }
+
+    if (key == GLFW_KEY_UNKNOWN)
+    {
+        return;
+    }
+
+    uint32_t modifiers = NK_MOD_NONE;
+
+    if (mods & GLFW_MOD_CONTROL) { modifiers |= NK_MOD_CTRL;  }
+    if (mods & GLFW_MOD_SHIFT)   { modifiers |= NK_MOD_SHIFT; }
+    if (mods & GLFW_MOD_ALT)     { modifiers |= NK_MOD_ALT;   }
+    if (mods & GLFW_MOD_SUPER)   { modifiers |= NK_MOD_SUPER; }
+
+    if (shortcut_handle_key((nk_key_t)key, modifiers))
+    {
+        /* The command may well have changed what is on screen. */
+        glfwPostEmptyEvent();
+    }
 }
 
 static void on_scroll(GLFWwindow *w, double dx, double dy)

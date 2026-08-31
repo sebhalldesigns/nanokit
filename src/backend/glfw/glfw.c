@@ -31,9 +31,13 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
+#include <gio/gio.h>
+
 #include <string.h>
 
 #include <stdlib.h>
+#include <stdio.h>
+#include <assert.h>
 
 /***************************************************************
 ** MARK: CONSTANTS & MACROS
@@ -70,6 +74,13 @@ static GLFWcursor *hand_cusor = NULL;
 static GLFWcursor *resize_ns_cusor = NULL;
 static GLFWcursor *resize_ew_cusor = NULL;
 
+static bool open_file_queued = false;
+static bool single_file = false;
+static nk_file_callback_t open_file_callback = NULL;
+
+static bool open_directory_queued = false;
+static nk_directory_callback_t open_directory_callback = NULL;
+
 /***************************************************************
 ** MARK: STATIC FUNCTION DEFS
 ***************************************************************/
@@ -81,6 +92,9 @@ static void on_framebuffer_size(GLFWwindow *w, int width, int height);
 static void on_cursor_pos(GLFWwindow *w, double x, double y);
 static void on_mouse_button(GLFWwindow *w, int button, int action, int mods);
 static void on_scroll(GLFWwindow *w, double dx, double dy);
+
+static void open_files(bool single, nk_file_callback_t callback);
+static void open_directory(nk_directory_callback_t callback);
 
 /***************************************************************
 ** MARK: PUBLIC FUNCTIONS
@@ -188,6 +202,18 @@ int backend_run(nk_run_info_t *info, int argc, char **argv)
     {
         glfwWaitEvents();
 
+        if (open_file_queued)
+        {
+            open_file_queued = false;
+            open_files(single_file, open_file_callback);
+        }
+
+        if (open_directory_queued)
+        {
+            open_directory_queued = false;
+            open_directory(open_directory_callback);
+        }
+
         glfw_window_data_t *data = (glfw_window_data_t*)glfwGetWindowUserPointer(single_window);
 
         glfwMakeContextCurrent(single_window);
@@ -271,6 +297,29 @@ nk_window_t *backend_get_active_window(void)
     return (nk_window_t*)single_window;
 }
 
+void nk_window_request_redraw(nk_window_t *window)
+{
+    /* wake glfwWaitEvents() so the run loop redraws promptly */
+    glfwPostEmptyEvent();
+}
+
+void nk_io_open_files(bool single_file_param, nk_file_callback_t callback)
+{
+    assert(callback);
+
+    open_file_callback = callback;
+    single_file = single_file_param;
+    open_file_queued = true;
+}
+
+void nk_io_open_directory(nk_directory_callback_t callback)
+{
+    assert(callback);
+
+    open_directory_callback = callback;
+    open_directory_queued = true;
+}
+
 /***************************************************************
 ** MARK: STATIC FUNCTIONS
 ***************************************************************/
@@ -322,4 +371,282 @@ static void on_mouse_button(GLFWwindow *w, int button, int action, int mods)
 static void on_scroll(GLFWwindow *w, double dx, double dy)
 {
     /* todo */
+}
+
+
+/***************************************************************
+** MARK: FILE DIALOGS (XDG DESKTOP PORTAL)
+***************************************************************/
+
+/* GLFW's Wayland backend loads libdecor, whose default plugin links GTK 3.
+   Linking a GUI toolkit of our own into the process would put a second GTK
+   major in the same GObject type system, so the dialogs talk to the
+   xdg-desktop-portal over D-Bus instead. That needs GIO only, and gives the
+   host desktop's native file chooser on GNOME, KDE and everything else with a
+   portal implementation. */
+
+#define PORTAL_BUS_NAME   "org.freedesktop.portal.Desktop"
+#define PORTAL_OBJECT     "/org/freedesktop/portal/desktop"
+#define PORTAL_FILECHOOSER "org.freedesktop.portal.FileChooser"
+#define PORTAL_REQUEST    "org.freedesktop.portal.Request"
+
+typedef struct {
+    bool done;
+    char **paths;
+    size_t count;
+} portal_request_t;
+
+static void on_portal_response(
+    GDBusConnection *connection,
+    const char *sender_name,
+    const char *object_path,
+    const char *interface_name,
+    const char *signal_name,
+    GVariant *parameters,
+    gpointer user_data)
+{
+    portal_request_t *request = (portal_request_t*)user_data;
+
+    guint32 response = 1;
+    GVariant *results = NULL;
+
+    g_variant_get(parameters, "(u@a{sv})", &response, &results);
+
+    if (response == 0 && results)
+    {
+        GVariant *uris = g_variant_lookup_value(
+            results, "uris", G_VARIANT_TYPE_STRING_ARRAY);
+
+        if (uris)
+        {
+            gsize n = g_variant_n_children(uris);
+
+            request->paths = (char**)calloc(n, sizeof(char*));
+
+            for (gsize i = 0; i < n; i++)
+            {
+                const char *uri = NULL;
+                g_variant_get_child(uris, i, "&s", &uri);
+
+                /* portal results are URIs; nanokit's API deals in paths */
+                char *path = g_filename_from_uri(uri, NULL, NULL);
+
+                if (path)
+                {
+                    request->paths[request->count++] = path;
+                }
+            }
+
+            g_variant_unref(uris);
+        }
+    }
+
+    if (results)
+    {
+        g_variant_unref(results);
+    }
+
+    request->done = true;
+}
+
+/* The portal answers on a request object whose path we can derive up front, so
+   we subscribe before making the call and cannot miss the response. */
+static char *portal_request_path(GDBusConnection *connection, const char *token)
+{
+    const char *unique_name = g_dbus_connection_get_unique_name(connection);
+
+    if (!unique_name)
+    {
+        return NULL;
+    }
+
+    /* ":1.42" -> "1_42" */
+    char *sender = g_strdup(unique_name + 1);
+
+    for (char *c = sender; *c; c++)
+    {
+        if (*c == '.')
+        {
+            *c = '_';
+        }
+    }
+
+    char *path = g_strdup_printf(
+        "%s/request/%s/%s", PORTAL_OBJECT, sender, token);
+
+    g_free(sender);
+
+    return path;
+}
+
+/* Runs the portal's OpenFile request to completion. Returns false if the
+   portal could not be reached at all; otherwise fills in `request` (a count of
+   zero means the user cancelled). */
+static bool portal_open(const char *title, bool multiple, bool directory,
+                        portal_request_t *request)
+{
+    GError *error = NULL;
+
+    GDBusConnection *connection =
+        g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, &error);
+
+    if (!connection)
+    {
+        fprintf(stderr, "nanokit: no session bus: %s\n",
+                error ? error->message : "unknown error");
+        g_clear_error(&error);
+        return false;
+    }
+
+    static unsigned int token_counter = 0;
+    char *token = g_strdup_printf("nanokit%u", ++token_counter);
+
+    char *request_path = portal_request_path(connection, token);
+
+    if (!request_path)
+    {
+        g_free(token);
+        g_object_unref(connection);
+        return false;
+    }
+
+    guint subscription = g_dbus_connection_signal_subscribe(
+        connection,
+        PORTAL_BUS_NAME,
+        PORTAL_REQUEST,
+        "Response",
+        request_path,
+        NULL,
+        G_DBUS_SIGNAL_FLAGS_NO_MATCH_RULE,
+        on_portal_response,
+        request,
+        NULL);
+
+    GVariantBuilder options;
+    g_variant_builder_init(&options, G_VARIANT_TYPE_VARDICT);
+    g_variant_builder_add(&options, "{sv}", "handle_token",
+                          g_variant_new_string(token));
+    g_variant_builder_add(&options, "{sv}", "multiple",
+                          g_variant_new_boolean(multiple));
+    g_variant_builder_add(&options, "{sv}", "directory",
+                          g_variant_new_boolean(directory));
+
+    GVariant *reply = g_dbus_connection_call_sync(
+        connection,
+        PORTAL_BUS_NAME,
+        PORTAL_OBJECT,
+        PORTAL_FILECHOOSER,
+        "OpenFile",
+        g_variant_new("(ssa{sv})", "", title, &options),
+        G_VARIANT_TYPE("(o)"),
+        G_DBUS_CALL_FLAGS_NONE,
+        -1,
+        NULL,
+        &error);
+
+    if (!reply)
+    {
+        fprintf(stderr, "nanokit: file dialog failed: %s\n",
+                error ? error->message : "unknown error");
+        g_clear_error(&error);
+        g_dbus_connection_signal_unsubscribe(connection, subscription);
+        g_free(request_path);
+        g_free(token);
+        g_object_unref(connection);
+        return false;
+    }
+
+    /* The portal is free to pick a different path than the one we derived; if
+       it did, resubscribe on the path it actually returned. */
+    const char *actual_path = NULL;
+    g_variant_get(reply, "(&o)", &actual_path);
+
+    if (g_strcmp0(actual_path, request_path) != 0)
+    {
+        g_dbus_connection_signal_unsubscribe(connection, subscription);
+
+        subscription = g_dbus_connection_signal_subscribe(
+            connection,
+            PORTAL_BUS_NAME,
+            PORTAL_REQUEST,
+            "Response",
+            actual_path,
+            NULL,
+            G_DBUS_SIGNAL_FLAGS_NO_MATCH_RULE,
+            on_portal_response,
+            request,
+            NULL);
+    }
+
+    g_variant_unref(reply);
+
+    while (!request->done)
+    {
+        g_main_context_iteration(NULL, TRUE);
+    }
+
+    g_dbus_connection_signal_unsubscribe(connection, subscription);
+    g_free(request_path);
+    g_free(token);
+    g_object_unref(connection);
+
+    return true;
+}
+
+static void portal_request_free(portal_request_t *request)
+{
+    for (size_t i = 0; i < request->count; i++)
+    {
+        g_free(request->paths[i]);
+    }
+
+    free(request->paths);
+}
+
+static void open_files(bool single, nk_file_callback_t callback)
+{
+    assert(callback);
+
+    portal_request_t request = { 0 };
+
+    if (!portal_open("Open File", !single, false, &request))
+    {
+        callback(false, NULL, 0);
+        return;
+    }
+
+    if (request.count == 0)
+    {
+        callback(false, NULL, 0);
+    }
+    else
+    {
+        callback(true, (const char**)request.paths, request.count);
+    }
+
+    portal_request_free(&request);
+}
+
+static void open_directory(nk_directory_callback_t callback)
+{
+    assert(callback);
+
+    portal_request_t request = { 0 };
+
+    if (!portal_open("Open Folder", false, true, &request))
+    {
+        callback(false, NULL);
+        return;
+    }
+
+    if (request.count == 0)
+    {
+        callback(false, NULL);
+    }
+    else
+    {
+        callback(true, request.paths[0]);
+    }
+
+    portal_request_free(&request);
 }

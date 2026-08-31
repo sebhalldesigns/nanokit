@@ -17,6 +17,9 @@ if (WIN32)
     )
 elseif(LINUX)
 
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(GIO REQUIRED IMPORTED_TARGET gio-2.0)
+
   set(BACKEND_SRC
         src/backend/glfw/glfw.c
     )
@@ -27,7 +30,7 @@ elseif(LINUX)
         GL
         m
         fontconfig
-
+        PkgConfig::GIO
     )
 
   set(BACKEND_INCLUDES
@@ -88,6 +91,15 @@ target_link_libraries(nanokit PUBLIC
     nanovg
     ${BACKEND_LIBS}
 )
+
+if (LINUX)
+    # We statically link our own FreeType (and GLFW/nanovg). Without this, the
+    # linker copies those static archives' global symbols into the executable's
+    # dynamic symbol table, where they interpose on the system libraries -- so
+    # fontconfig, and libdecor's GTK plugin behind it, would bind their FT_*
+    # calls to our build instead of the system libfreetype.
+    target_link_options(nanokit INTERFACE "LINKER:--exclude-libs,ALL")
+endif()
 
 
 # Embed Resources function courtesy of shir0areed on GitHub

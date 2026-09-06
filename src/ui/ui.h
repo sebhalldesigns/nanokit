@@ -34,6 +34,7 @@ extern "C" {
 
 #include <ui/scroll_view/scroll_view.h>
 #include <ui/tree/tree.h>
+#include <ui/table/table_row.h>
 
 #include <ui/menubar/menubar.h>
 #include <ui/menubar/menu.h>
@@ -98,6 +99,12 @@ nk_point_t ui_pointer_location(void);
 
 /* size of the current window's drawable area, in layout coordinates */
 nk_point_t ui_window_size(void);
+
+/* Width the first `length` bytes of `text` would occupy at this size and
+   variant — the same measurement Clay lays text out with, so a widget can work
+   out where its own text stops fitting. Only meaningful mid-render, while a
+   font context exists. */
+float ui_text_width(const char *text, size_t length, float size, nk_text_variant_t variant);
 
 Clay_Color nk_to_clay_color(nk_color_t c);
 

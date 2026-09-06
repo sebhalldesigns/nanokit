@@ -23,6 +23,15 @@ set(FT_DISABLE_BROTLI OFF CACHE BOOL "" FORCE)
 set(FT_REQUIRE_BROTLI ON CACHE BOOL "" FORCE)
 add_subdirectory(freetype)
 
+# klib (header-only containers — kvec/khash — plus the kstring implementation)
+add_library(klib STATIC
+    klib/kstring.c
+)
+
+target_include_directories(klib PUBLIC
+    klib
+)
+
 # NanoVG
 add_library(nanovg STATIC
     nanovg/nanovg.c

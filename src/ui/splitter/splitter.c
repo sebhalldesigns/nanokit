@@ -89,6 +89,11 @@ void nk_splitter_init_proportional(nk_splitter_t *splitter, float *target, nk_di
     splitter->reference = reference;
 }
 
+float nk_splitter_get_thickness(void)
+{
+    return resource_get_float(NKRES_SIZE_SPLITTER_THICKNESS);
+}
+
 void splitter_render(nk_view_t *view)
 {
     nk_splitter_t *splitter = (nk_splitter_t *)view;

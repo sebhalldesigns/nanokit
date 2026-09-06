@@ -278,6 +278,24 @@ nk_point_t ui_window_size(void)
     return window_size;
 }
 
+float ui_text_width(const char *text, size_t length, float size, nk_text_variant_t variant)
+{
+    if (!g_vg || !text || length == 0) return 0.0f;
+
+    Clay_StringSlice slice = {
+        .length = (int32_t)length,
+        .chars = text,
+        .baseChars = text
+    };
+
+    Clay_TextElementConfig config = {
+        .fontSize = (uint16_t)size,
+        .fontId = (uint16_t)variant
+    };
+
+    return measure_text(slice, &config, NULL).width;
+}
+
 /***************************************************************
 ** MARK: STATIC FUNCTIONS
 ***************************************************************/
@@ -314,9 +332,21 @@ static Clay_Dimensions measure_text(Clay_StringSlice text, Clay_TextElementConfi
     };
 }
 
+/* NanoVG keeps a single scissor rect with no stack of its own, and
+   nvgResetScissor drops it entirely rather than restoring whatever enclosed
+   it. Clay nests clips freely — a scroll view inside a clipped dock tab, say —
+   so honouring an END by resetting would leave everything drawn after it
+   unclipped, letting a tab's contents spill over its neighbours. Keep the
+   stack here: each level stores the rect already intersected with its
+   ancestors, so an END only has to restore the level below. */
+#define CLAY_SCISSOR_MAX_DEPTH (16U)
+
 static void render_clay_commands(NVGcontext *vg)
 {
     Clay_RenderCommandArray commands = Clay_EndLayout();
+
+    Clay_BoundingBox scissor_stack[CLAY_SCISSOR_MAX_DEPTH];
+    uint32_t scissor_depth = 0;
 
     for (uint32_t i = 0; i < commands.length; i++)
     {
@@ -579,13 +609,50 @@ static void render_clay_commands(NVGcontext *vg)
 
             case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START:
             {
-                nvgScissor(vg, box.x, box.y, box.width, box.height);
+                Clay_BoundingBox clip = box;
+
+                if (scissor_depth > 0)
+                {
+                    Clay_BoundingBox outer = scissor_stack[scissor_depth - 1];
+
+                    float x0 = (clip.x > outer.x) ? clip.x : outer.x;
+                    float y0 = (clip.y > outer.y) ? clip.y : outer.y;
+
+                    float clip_x1  = clip.x + clip.width;
+                    float clip_y1  = clip.y + clip.height;
+                    float outer_x1 = outer.x + outer.width;
+                    float outer_y1 = outer.y + outer.height;
+
+                    float x1 = (clip_x1 < outer_x1) ? clip_x1 : outer_x1;
+                    float y1 = (clip_y1 < outer_y1) ? clip_y1 : outer_y1;
+
+                    clip.x = x0;
+                    clip.y = y0;
+                    clip.width  = (x1 > x0) ? x1 - x0 : 0.0f;
+                    clip.height = (y1 > y0) ? y1 - y0 : 0.0f;
+                }
+
+                if (scissor_depth < CLAY_SCISSOR_MAX_DEPTH)
+                {
+                    scissor_stack[scissor_depth] = clip;
+                }
+                scissor_depth++;
+
+                nvgScissor(vg, clip.x, clip.y, clip.width, clip.height);
                 break;
             }
 
             case CLAY_RENDER_COMMAND_TYPE_SCISSOR_END:
             {
+                if (scissor_depth > 0) scissor_depth--;
+
                 nvgResetScissor(vg);
+
+                if (scissor_depth > 0 && scissor_depth <= CLAY_SCISSOR_MAX_DEPTH)
+                {
+                    Clay_BoundingBox outer = scissor_stack[scissor_depth - 1];
+                    nvgScissor(vg, outer.x, outer.y, outer.width, outer.height);
+                }
                 break;
             }
 

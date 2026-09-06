@@ -65,6 +65,7 @@ add_library(nanokit STATIC
     src/ui/button/button.c
     src/ui/scroll_view/scroll_view.c
     src/ui/tree/tree.c
+    src/ui/table/table_row.c
     src/ui/menubar/menubar.c
     src/ui/shortcut/shortcut.c
     src/ui/menubar/menu.c
@@ -90,6 +91,7 @@ target_include_directories(nanokit PRIVATE
 target_link_libraries(nanokit PUBLIC
     glad
     nanovg
+    klib
     ${BACKEND_LIBS}
 )
 

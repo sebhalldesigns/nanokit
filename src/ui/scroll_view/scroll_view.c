@@ -19,6 +19,8 @@
 
 #include <ui/ui.h>
 
+#include <backend/backend.h>
+
 #include <resource/resource.h>
 
 /***************************************************************
@@ -77,6 +79,11 @@ void nk_scroll_view_init(nk_scroll_view_t *scroll_view)
 
     scroll_view->virtualize = false;
     scroll_view->item_height = 0.0f;
+    scroll_view->axes = NK_SCROLL_AXES_BOTH;
+    scroll_view->bar_anchor = NULL;
+    scroll_view->bar_client = NULL;
+    scroll_view->geom_show_hbar = false;
+    scroll_view->geom_show_vbar = false;
 
     scroll_view->geom_valid = false;
     scroll_view->geom_forced_min_w = 0.0f;
@@ -151,21 +158,48 @@ void scroll_view_render(nk_view_t *view)
     float content_min_w = viewport_w - padding_x;
     if (content_min_w < 0.0f) content_min_w = 0.0f;
 
-    bool show_vbar = content_h > viewport_h + 0.5f;
-    bool show_hbar = content_w > viewport_w + 0.5f
+    bool scrolls_x = (scroll_view->axes != NK_SCROLL_AXES_VERTICAL);
+    bool scrolls_y = (scroll_view->axes != NK_SCROLL_AXES_HORIZONTAL);
+
+    /* An axis this view does not scroll never carries an offset, however it was
+       nudged — a stale one would slide the content out from under a parent that
+       is doing the scrolling on that axis. */
+    if (!scrolls_x) { scroll_x = 0.0f; scroll_view->geom_scroll_x = 0.0f; }
+    if (!scrolls_y) { scroll_y = 0.0f; scroll_view->geom_scroll_y = 0.0f; }
+
+    bool show_vbar = scrolls_y && content_h > viewport_h + 0.5f;
+    bool show_hbar = scrolls_x
+                  && content_w > viewport_w + 0.5f
                   && content_w > scroll_view->geom_forced_min_w + padding_x + 0.5f;
 
     scroll_view->geom_forced_min_w = content_min_w;
+    scroll_view->geom_show_hbar     = show_hbar;
+    scroll_view->geom_show_vbar     = show_vbar;
 
     float max_scroll_y = content_h - viewport_h;
     float max_scroll_x = content_w - viewport_w;
 
     float thickness = resource_get_float(NKRES_SIZE_SCROLLBAR_THICKNESS);
 
-    /* Shorten each track by the other bar's footprint so they never meet in the
-       corner. */
-    float track_y = viewport_h - (show_hbar ? thickness + SCROLLBAR_INSET : 0.0f);
-    float track_x = viewport_w - (show_vbar ? thickness + SCROLLBAR_INSET : 0.0f);
+    float gutter = thickness + SCROLLBAR_INSET;
+
+    /* Let the anchor know who is hanging a bar off it, so it can keep its own
+       clear of the corner they now share. It reads this on its next frame,
+       which is soon enough for something that only changes when a bar appears
+       or goes away. */
+    nk_scroll_view_t *anchor = scroll_view->bar_anchor;
+
+    if (anchor) anchor->bar_client = scroll_view;
+
+    /* Shorten each track by whatever crosses its end. A view knows its own pair
+       of bars, but an anchored one and its anchor contribute a bar each, and
+       those two would otherwise run straight into each other. */
+    float anchor_hbar = (anchor && anchor->geom_show_hbar) ? gutter : 0.0f;
+    float client_vbar = (scroll_view->bar_client && scroll_view->bar_client->geom_show_vbar)
+                      ? gutter : 0.0f;
+
+    float track_y = viewport_h - (show_hbar ? gutter : 0.0f) - anchor_hbar;
+    float track_x = viewport_w - (show_vbar ? gutter : 0.0f) - client_vbar;
 
     float thumb_h = thumb_length(track_y, content_h);
     float thumb_w = thumb_length(track_x, content_w);
@@ -224,6 +258,7 @@ void scroll_view_render(nk_view_t *view)
 
     /* Virtualisation window (vertical only) */
     size_t child_count = count_children(view);
+    size_t child_count_after = child_count;
     size_t first = 0;
     size_t last = child_count;
 
@@ -260,8 +295,8 @@ void scroll_view_render(nk_view_t *view)
         },
         .backgroundColor = nk_to_clay_color(resource_get_dynamic_color(view->background_resource)),
         .clip = {
-            .horizontal  = true,
-            .vertical    = true,
+            .horizontal  = scrolls_x,
+            .vertical    = scrolls_y,
             .childOffset = Clay_GetScrollOffset()
         }
     })
@@ -274,9 +309,15 @@ void scroll_view_render(nk_view_t *view)
            stopping at the end of its text. */
         CLAY({
             .layout = {
+                /* Fit the content on a scrolled axis so it can overflow and
+                   drive the bar; grow to the viewport on an unscrolled one, so
+                   the view just fills its parent there and leaves that axis to
+                   whoever is scrolling it. */
                 .sizing = {
-                    .width  = CLAY_SIZING_FIT(.min = content_min_w),
-                    .height = CLAY_SIZING_FIT(0)
+                    .width  = scrolls_x ? CLAY_SIZING_FIT(.min = content_min_w)
+                                        : CLAY_SIZING_GROW(0),
+                    .height = scrolls_y ? CLAY_SIZING_FIT(0)
+                                        : CLAY_SIZING_GROW(0)
                 },
                 .childGap = view->gap,
                 .layoutDirection = CLAY_TOP_TO_BOTTOM
@@ -302,6 +343,8 @@ void scroll_view_render(nk_view_t *view)
                 index++;
             }
 
+            child_count_after = count_children(view);
+
             if (bottom_spacer > 0.0f)
             {
                 CLAY({
@@ -309,6 +352,17 @@ void scroll_view_render(nk_view_t *view)
                 }) {}
             }
         }
+    }
+
+    /* A press handled while rendering — expanding a tree folder, say — adds its
+       children after the window above was measured, so any that fall past the
+       old end of the list go unrendered. Drawing is driven by events, so
+       nothing would come along to correct that until the next unrelated one,
+       and the new rows would sit missing until the pointer happened to move.
+       Ask for the frame that fills them in. */
+    if (child_count_after != child_count)
+    {
+        nk_window_request_redraw(backend_get_active_window());
     }
 
     /* Scrollbar thumbs — floating, attached to the viewport so the clip's
@@ -323,16 +377,39 @@ void scroll_view_render(nk_view_t *view)
         nk_color_t color = resource_get_dynamic_color(NKRES_COLOR_TEXT_SECONDARY);
         if (hot) color.a = 0.75f;
 
+        /* Hang the bar off the anchor's element rather than this view's own,
+           which is as wide as the content and so can reach well past the panel.
+           Clay places a floating element from its target's box as laid out this
+           frame, so the bar lands on the panel edge exactly — none of the
+           trailing, or the escape onto whatever is alongside, that computing an
+           offset from last frame's widths gives it mid-drag. Only the vertical
+           origin has to be carried across, and that gap — the header above the
+           rows — holds still while the width is changing. */
+        Clay_ElementId vthumb_parent = clay_id;
+        float vthumb_offset_y = thumb_top;
+
+        if (anchor)
+        {
+            Clay_ElementId anchor_id = { .id = anchor->view.id };
+            Clay_ElementData anchor_box = Clay_GetElementData(anchor_id);
+
+            if (anchor_box.found && box.found)
+            {
+                vthumb_parent   = anchor_id;
+                vthumb_offset_y = thumb_top + (box.boundingBox.y - anchor_box.boundingBox.y);
+            }
+        }
+
         CLAY({
             .id = vthumb_id,
             .floating = {
                 .attachTo = CLAY_ATTACH_TO_ELEMENT_WITH_ID,
-                .parentId = clay_id.id,
+                .parentId = vthumb_parent.id,
                 .attachPoints = {
                     .element = CLAY_ATTACH_POINT_RIGHT_TOP,
                     .parent  = CLAY_ATTACH_POINT_RIGHT_TOP
                 },
-                .offset = { .x = -SCROLLBAR_INSET, .y = thumb_top },
+                .offset = { .x = -SCROLLBAR_INSET, .y = vthumb_offset_y },
                 .zIndex = 5
             },
             .layout = {

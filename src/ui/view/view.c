@@ -152,6 +152,11 @@ void view_render(nk_view_t *view)
             tree_item_render(view);
         } break;
 
+        case NK_TABLE_ROW:
+        {
+            table_row_render(view);
+        } break;
+
         case NK_MENU:
         {
             menu_render(view);

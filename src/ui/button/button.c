@@ -46,7 +46,10 @@
 void nk_button_init(nk_button_t *button, nk_button_press_callback_t callback)
 {
     button->view.type = NK_BUTTON;
-    button->view.id = ui_id_from_fmt("button:%s", button->text);
+    /* Keyed on the button's own address, not its text — two buttons with the
+       same label (e.g. per-document tab strips) would otherwise collide onto
+       the same Clay element id when both are visible in the same frame. */
+    button->view.id = ui_id_from_fmt("button:%p", button);
 
     button->text_info.color_resource = NKRES_COLOR_TEXT_PRIMARY;
     button->text_info.size = resource_get_float(NKRES_SIZE_TEXT_PRIMARY);

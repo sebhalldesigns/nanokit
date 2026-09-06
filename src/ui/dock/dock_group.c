@@ -677,7 +677,13 @@ void dock_group_render(nk_view_t *view)
             }) {}
         }
 
-        /* Content area */
+        /* Content area. Deliberately not a clipping container: width is this
+           element's own layout axis, and Clay reads a clip on the layout axis
+           as licence for children to overflow — it skips compressing them
+           altogether — so clipping here would let a tab grow past its pane
+           rather than be held inside it. A tab that must not force the dock
+           wider is expected to contain its own width, which a scroll view
+           does by reporting no minimum. */
         CLAY({
             .id = content_id,
             .layout = {

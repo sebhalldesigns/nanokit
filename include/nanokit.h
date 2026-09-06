@@ -164,6 +164,7 @@ struct nk_dock_node_t;
 struct nk_dock_t;
 struct nk_button_t;
 struct nk_tree_item_t;
+struct nk_table_row_t;
 
 typedef void (*nk_void_callback_t)(void);
 typedef bool (*nk_bool_callback_t)(void);
@@ -177,6 +178,8 @@ typedef void (*nk_command_callback_t)(const char *command, const char *args);
 typedef void (*nk_button_press_callback_t)(struct nk_button_t *button);
 
 typedef void (*nk_tree_item_press_callback_t)(struct nk_tree_item_t *item);
+
+typedef void (*nk_table_row_press_callback_t)(struct nk_table_row_t *row);
 
 typedef struct
 {
@@ -316,7 +319,14 @@ typedef struct
     bool no_wrap;
 } nk_label_t;
 
-typedef struct
+typedef enum
+{
+    NK_SCROLL_AXES_BOTH = 0, /* the default: scrolls, clips and bars on both */
+    NK_SCROLL_AXES_VERTICAL,
+    NK_SCROLL_AXES_HORIZONTAL
+} nk_scroll_axes_t;
+
+typedef struct nk_scroll_view_t
 {
     nk_view_t view;
 
@@ -324,6 +334,32 @@ typedef struct
        spacers reserving the off-screen height. Requires uniform item_height. */
     bool virtualize;
     float item_height;
+
+    /* Which axes this view scrolls, clips and offers a bar for. The unscrolled
+       axis is not clipped either, and its content is held to the viewport
+       rather than fitted to itself, so the view simply fills its parent on
+       that axis.
+
+       Restricting the axes is what lets two scroll views nest into a table: an
+       outer horizontal one holding the header and the rows together, so the
+       one bar along the bottom slides both in step and neither can spill past
+       the panel, and a vertical one around the rows alone, so they scroll
+       under a header that stays put. */
+    nk_scroll_axes_t axes;
+
+    /* An outer scroll view to hang this one's vertical bar off. A view nested
+       inside a horizontally scrolling one is as wide as the content, not as
+       wide as the panel, so its bar would sit against the far right of the
+       content and slide out of sight the moment you scrolled left. Naming the
+       outer view here keeps the bar against the panel edge where it belongs,
+       and clear of the outer view's own horizontal bar. Optional; a view that
+       is not nested like this leaves it NULL. */
+    struct nk_scroll_view_t *bar_anchor;
+
+    /* The inner view that named this one as its bar_anchor, filled in by that
+       view as it renders. The pair contributes one bar each, so each has to
+       know about the other's to keep them out of the shared corner. */
+    struct nk_scroll_view_t *bar_client;
 
     /* Last-known-good scroll geometry. Clay_GetScrollContainerData is queried
        mid-layout and can momentarily report "not found" (its result hinges on a
@@ -335,6 +371,12 @@ typedef struct
     float geom_content_w, geom_content_h;
     float geom_scroll_x, geom_scroll_y;
     bool  geom_valid;
+
+    /* Which bars were drawn last time this view rendered, read by the view on
+       the other end of a bar_anchor pairing so the two stay out of the corner
+       they share. */
+    bool geom_show_hbar;
+    bool geom_show_vbar;
 
     /* Width the content column was forced to hold last frame (see the FIT(.min)
        in scroll_view_render). Clay reports content dimensions one frame late, so
@@ -360,6 +402,44 @@ typedef struct nk_tree_item_t
 
     nk_tree_item_press_callback_t press_callback;
 } nk_tree_item_t;
+
+#define NK_TABLE_ROW_MAX_CELLS (8U)
+
+/* A single selectable, clickable table row rendered as a strip of cells — the
+   row-level building block for a table view. Column headers are a plain
+   nk_view_t of nk_label_t built by the caller with matching widths.
+
+   `column_widths` points at an array of `cell_count` live width pointers
+   shared with every other row of the same table (and with the header, if the
+   caller wires the header's own width fields into the same slots). Resizing a
+   column therefore just means mutating the float the corresponding slot points
+   at; every row picks it up next frame with no per-row update needed. The
+   array itself is owned by the caller and must outlive the row.
+
+   Give every column a real width. A NULL slot, or one that dereferences to
+   <= 0, makes that cell grow instead — but a growing cell sizes itself around
+   its own text, so each row would ask for a different width, the enclosing
+   scroll view would fit the widest of them, and every column after the
+   growing one would land at a different offset in each row and in the header.
+   Each row instead ends in a trailing filler that carries no text and so
+   claims no width; that is what soaks up the slack and keeps every row exactly
+   as wide as the header. */
+typedef struct nk_table_row_t
+{
+    nk_view_t view;
+
+    const char        *cell_text[NK_TABLE_ROW_MAX_CELLS];
+    size_t              cell_count;
+    const float *const *column_widths;
+
+    nk_text_info_t text_info;
+
+    bool selected;
+
+    void *user_data;
+
+    nk_table_row_press_callback_t press_callback;
+} nk_table_row_t;
 
 typedef struct
 {
@@ -550,6 +630,7 @@ typedef enum
     NK_BUTTON,
     NK_SCROLL_VIEW,
     NK_TREE_ITEM,
+    NK_TABLE_ROW,
     NK_MENU,
     NK_MENUBAR,
     NK_SPLITTER,
@@ -609,9 +690,15 @@ void nk_scroll_view_init(nk_scroll_view_t *scroll_view);
 
 void nk_tree_item_init(nk_tree_item_t *item, nk_tree_item_press_callback_t callback);
 
+void nk_table_row_init(nk_table_row_t *row, nk_table_row_press_callback_t callback);
+
 void nk_splitter_init(nk_splitter_t *splitter, float *target, nk_direction_t direction, bool reversed);
 void nk_splitter_init_proportional(nk_splitter_t *splitter, float *target,
     nk_direction_t direction, bool reversed, float *reference);
+
+/* Pixel thickness of a splitter's draggable strip, so a composed widget (e.g.
+   a resizable table header) can size a non-interactive gap to match. */
+float nk_splitter_get_thickness(void);
 
 void nk_dock_init(nk_dock_t *dock);
 
